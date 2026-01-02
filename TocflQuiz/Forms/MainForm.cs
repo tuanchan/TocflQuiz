@@ -22,6 +22,8 @@ namespace TocflQuiz.Forms
         private Button btnDue = new();
         private Button btnStartRandom = new();
 
+
+        private Button btnCards = new();
         // ===================== [CFG-UI] Controls chỉnh đường dẫn =====================
         private TextBox txtDatasetRoot = new();
         private TextBox txtProgressFile = new();
@@ -323,7 +325,8 @@ namespace TocflQuiz.Forms
                 Text = "  Hành động  ",
                 Dock = DockStyle.Fill,
                 Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold),
-                Padding = new Padding(12, 8, 12, 12),
+                // Giảm padding trái/phải để nút rộng hơn
+                Padding = new Padding(4, 8, 4, 8),
                 ForeColor = System.Drawing.Color.FromArgb(50, 50, 50)
             };
 
@@ -331,13 +334,16 @@ namespace TocflQuiz.Forms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3,
-                Padding = new Padding(8)
+                RowCount = 4,
+                // Bỏ padding trong layout để nút "full" bề ngang
+                Padding = new Padding(0),
+                Margin = new Padding(0)
             };
 
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.34F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
 
             // Button styles
             var buttonFont = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Regular);
@@ -347,7 +353,7 @@ namespace TocflQuiz.Forms
             btnList.Dock = DockStyle.Fill;
             btnList.Font = buttonFont;
             btnList.Height = buttonHeight;
-            btnList.Margin = new Padding(0, 3, 0, 3);
+            btnList.Margin = new Padding(0, 1, 0, 1);
             btnList.BackColor = System.Drawing.Color.FromArgb(70, 130, 180);
             btnList.ForeColor = System.Drawing.Color.White;
             btnList.FlatStyle = FlatStyle.Flat;
@@ -359,7 +365,7 @@ namespace TocflQuiz.Forms
             btnDue.Dock = DockStyle.Fill;
             btnDue.Font = buttonFont;
             btnDue.Height = buttonHeight;
-            btnDue.Margin = new Padding(0, 3, 0, 3);
+            btnDue.Margin = new Padding(0, 1, 0, 1);
             btnDue.BackColor = System.Drawing.Color.FromArgb(220, 100, 50);
             btnDue.ForeColor = System.Drawing.Color.White;
             btnDue.FlatStyle = FlatStyle.Flat;
@@ -371,7 +377,7 @@ namespace TocflQuiz.Forms
             btnStartRandom.Dock = DockStyle.Fill;
             btnStartRandom.Font = buttonFont;
             btnStartRandom.Height = buttonHeight;
-            btnStartRandom.Margin = new Padding(0, 3, 0, 3);
+            btnStartRandom.Margin = new Padding(0, 1, 0, 1);
             btnStartRandom.BackColor = System.Drawing.Color.FromArgb(60, 170, 100);
             btnStartRandom.ForeColor = System.Drawing.Color.White;
             btnStartRandom.FlatStyle = FlatStyle.Flat;
@@ -379,9 +385,29 @@ namespace TocflQuiz.Forms
             btnStartRandom.Cursor = Cursors.Hand;
             btnStartRandom.Click += (_, __) => StartRandomInCategory();
 
+            // Nút Flashcards (Card)
+            btnCards.Text = "🃏 Flashcards (Card)";
+            btnCards.Dock = DockStyle.Fill;
+            btnCards.Font = buttonFont;
+            btnCards.Height = buttonHeight;
+            btnCards.Margin = new Padding(0, 1, 0, 1);
+            btnCards.BackColor = System.Drawing.Color.FromArgb(120, 90, 160);
+            btnCards.ForeColor = System.Drawing.Color.White;
+            btnCards.FlatStyle = FlatStyle.Flat;
+            btnCards.FlatAppearance.BorderSize = 0;
+            btnCards.Cursor = Cursors.Hand;
+
+            // Tạm thời test nút hoạt động (chưa mở CardForm)
+            btnCards.Click += (_, __) =>
+            {
+                var f = new CardForm();
+                f.Show(this);
+            };
+
             layout.Controls.Add(btnList, 0, 0);
             layout.Controls.Add(btnDue, 0, 1);
             layout.Controls.Add(btnStartRandom, 0, 2);
+            layout.Controls.Add(btnCards, 0, 3);
 
             group.Controls.Add(layout);
             return group;
