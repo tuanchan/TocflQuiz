@@ -400,9 +400,10 @@ namespace TocflQuiz.Forms
             // Tạm thời test nút hoạt động (chưa mở CardForm)
             btnCards.Click += (_, __) =>
             {
-                var f = new CardForm();
+                var f = new CardForm(_cfg, _groups, _progressMap, _store, _sr);
                 f.Show(this);
             };
+
 
             layout.Controls.Add(btnList, 0, 0);
             layout.Controls.Add(btnDue, 0, 1);

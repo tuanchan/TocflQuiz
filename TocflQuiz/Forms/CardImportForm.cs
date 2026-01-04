@@ -32,8 +32,13 @@ namespace TocflQuiz.Forms
 
         private CardItem[] _lastPreview = Array.Empty<CardItem>();
 
-        // Watermark text
+        // ===== Watermark text =====
         private const string TitleWatermark = "Tên học phần (ví dụ: TOCFL A2 - Week 1)";
+        private const string RawWatermark =
+            "Từ 1\tĐịnh nghĩa 1\r\n" +
+            "Từ 2\tĐịnh nghĩa 2\r\n" +
+            "Từ 3\tĐịnh nghĩa 3";
+
         private const string TdCustomWatermark = "Nhập ký tự (vd: | )";
         private const string CardCustomWatermark = "Nhập ký tự (vd: ### )";
 
@@ -53,48 +58,51 @@ namespace TocflQuiz.Forms
 
         private void BuildUi()
         {
-            // Root layout: 5 rows
+            // ✅ Tối ưu: giảm padding + dùng % để co giãn đẹp khi nhúng trong CardForm
             var root = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(16),
+                Padding = new Padding(10),
                 BackColor = Color.White,
                 ColumnCount = 1,
                 RowCount = 5
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));  // header
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 260)); // raw input
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150)); // options
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));  // preview title
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // preview table fill
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));      // header gọn
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 44));       // raw co giãn
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 140));     // options gọn
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));      // preview title
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 56));       // preview fill
 
             // ===== Header row =====
             var header = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
+                Margin = new Padding(0)
             };
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360));
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280));
-            var titleWrap = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 6, 0, 0) };
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // title label
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));  // title textbox
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 270)); // buttons
+
             var lblTitle = new Label
             {
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 16F, FontStyle.Bold),
-                Text = "Nhập dữ liệu"
+                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+                Text = "Nhập dữ liệu",
+                Padding = new Padding(6, 0, 0, 0)
             };
 
             txtTitle.Dock = DockStyle.Fill;
-            txtTitle.Margin = new Padding(0, 14, 10, 14);
+            txtTitle.Margin = new Padding(0, 14, 12, 14);
 
             var btnWrap = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
-                Padding = new Padding(0, 12, 0, 0)
+                Padding = new Padding(0, 12, 0, 0),
+                Margin = new Padding(0)
             };
 
             btnSave.Text = "Lưu";
@@ -114,14 +122,15 @@ namespace TocflQuiz.Forms
             {
                 Dock = DockStyle.Fill,
                 Text = "Nhập dữ liệu (copy paste từ Word/Excel/Google Docs...)",
-                Padding = new Padding(10)
+                Padding = new Padding(10),
+                Margin = new Padding(0, 6, 0, 6)
             };
 
             txtRaw.Dock = DockStyle.Fill;
             txtRaw.Multiline = true;
             txtRaw.ScrollBars = ScrollBars.Vertical;
             txtRaw.Font = new Font("Consolas", 10F);
-            txtRaw.Text = "Từ 1\tĐịnh nghĩa 1\nTừ 2\tĐịnh nghĩa 2\nTừ 3\tĐịnh nghĩa 3";
+            txtRaw.Text = ""; // ✅ không set ví dụ trực tiếp nữa -> dùng watermark
             gbRaw.Controls.Add(txtRaw);
 
             // ===== Options row =====
@@ -129,7 +138,8 @@ namespace TocflQuiz.Forms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 1
+                RowCount = 1,
+                Margin = new Padding(0, 0, 0, 6)
             };
             optionsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             optionsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
@@ -143,7 +153,8 @@ namespace TocflQuiz.Forms
             BuildSepOptions_Card(gbCard);
 
             // ===== Preview title row =====
-            var previewHeader = new Panel { Dock = DockStyle.Fill };
+            var previewHeader = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
+
             var lblPrev = new Label
             {
                 Dock = DockStyle.Left,
@@ -152,6 +163,7 @@ namespace TocflQuiz.Forms
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 Text = "Xem trước"
             };
+
             lblCount.Dock = DockStyle.Fill;
             lblCount.TextAlign = ContentAlignment.MiddleLeft;
             lblCount.ForeColor = Color.FromArgb(90, 90, 90);
@@ -266,8 +278,6 @@ namespace TocflQuiz.Forms
             btnPreview.Click += (_, __) => DoPreview();
             btnSave.Click += (_, __) => DoSave();
 
-            // nếu bạn muốn auto-preview mỗi lần gõ thì mở dòng này:
-            // txtRaw.TextChanged += (_, __) => DoPreview();
             txtRaw.TextChanged += (_, __) => lblCount.Text = "";
         }
 
@@ -310,7 +320,18 @@ namespace TocflQuiz.Forms
                 return;
             }
 
-            var raw = txtRaw.Text ?? "";
+            // ✅ dùng raw safe (không lấy watermark)
+            var raw = GetWatermarkSafeText(txtRaw, RawWatermark);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                lvPreview.Items.Clear();
+                lblCount.Text = "";
+                MessageBox.Show("Bạn chưa nhập dữ liệu.", "Thiếu dữ liệu",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _lastPreview = Array.Empty<CardItem>();
+                return;
+            }
+
             var items = CardImportParser.Parse(raw, termDefSep, cardSep);
             _lastPreview = items.ToArray();
 
@@ -343,6 +364,9 @@ namespace TocflQuiz.Forms
             if (string.IsNullOrWhiteSpace(title))
                 title = $"Set {DateTime.Now:yyyy-MM-dd HH:mm}";
 
+            // ✅ raw safe để lưu, tránh lưu watermark
+            var rawSafe = GetWatermarkSafeText(txtRaw, RawWatermark);
+
             var set = new CardSet
             {
                 Title = title,
@@ -352,13 +376,14 @@ namespace TocflQuiz.Forms
 
             var dir = CardSetStorage.SaveSet(
                 set,
-                rawInput: CardImportParser.NormalizeNewlines(txtRaw.Text ?? ""),
+                rawInput: CardImportParser.NormalizeNewlines(rawSafe),
                 termDefSep: GetTermDefSep(),
                 cardSep: GetCardSep()
             );
 
             MessageBox.Show($"Đã lưu {set.Items.Count} thẻ.\nFolder:\n{dir}",
                 "OK", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
             DialogResult = DialogResult.OK;
             Close();
         }
@@ -397,6 +422,7 @@ namespace TocflQuiz.Forms
         private void ApplyWatermarks()
         {
             ApplyWatermark(txtTitle, TitleWatermark);
+            ApplyWatermark(txtRaw, RawWatermark); // ✅ NEW: watermark cho ô nhập liệu
             ApplyWatermark(txtTD_Custom, TdCustomWatermark);
             ApplyWatermark(txtCard_Custom, CardCustomWatermark);
         }
@@ -412,6 +438,7 @@ namespace TocflQuiz.Forms
 
             tb.GotFocus += (_, __) =>
             {
+                // ✅ focus -> auto clear watermark
                 if (tb.ForeColor == Color.Gray && tb.Text == watermark)
                 {
                     tb.Text = "";
@@ -421,6 +448,7 @@ namespace TocflQuiz.Forms
 
             tb.LostFocus += (_, __) =>
             {
+                // ✅ rỗng -> hiện watermark lại
                 if (string.IsNullOrWhiteSpace(tb.Text))
                 {
                     tb.Text = watermark;
