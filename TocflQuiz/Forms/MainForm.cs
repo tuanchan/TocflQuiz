@@ -558,7 +558,6 @@ namespace TocflQuiz.Forms
                 var scanner = new ContentScanner();
                 var newGroups = scanner.ScanAll(_cfg) ?? new List<QuestionGroup>();
 
-                // cập nhật list _groups (giữ reference cũ để không ảnh hưởng chỗ khác)
                 _groups.Clear();
                 _groups.AddRange(newGroups);
 
