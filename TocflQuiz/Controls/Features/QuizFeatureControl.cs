@@ -174,7 +174,7 @@ namespace TocflQuiz.Controls.Features
             Controls.Add(root);
 
             BuildSetupOverlay();
-            BuildResultOverlay(); // ✅ THIẾU trước đó
+            BuildResultOverlay();
 
             _scroll.SizeChanged += (_, __) => ResizeCardsToFit();
         }
@@ -204,15 +204,19 @@ namespace TocflQuiz.Controls.Features
             _dlg.Shadow = true;
             _dlg.Padding = new Padding(28);
 
+            // ✅ close button same color as panel
             _btnClose.Text = "×";
             _btnClose.Width = 44;
             _btnClose.Height = 44;
             _btnClose.FlatStyle = FlatStyle.Flat;
             _btnClose.FlatAppearance.BorderSize = 0;
-            _btnClose.BackColor = Color.FromArgb(245, 245, 245);
+            _btnClose.BackColor = Color.White;
+            _btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 246, 250);
+            _btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(238, 240, 246);
             _btnClose.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
             _btnClose.ForeColor = Color.FromArgb(90, 90, 90);
             _btnClose.Cursor = Cursors.Hand;
+            _btnClose.TabStop = false;
 
             _dlgSetTitle.Text = "(chưa chọn)";
             _dlgSetTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
@@ -241,7 +245,7 @@ namespace TocflQuiz.Controls.Features
                 AutoSize = true
             };
 
-            _pillCount.Width = 110;
+            _pillCount.Width = 120;
             _pillCount.Height = 46;
 
             _pillAnswer.Width = 240;
@@ -409,15 +413,19 @@ namespace TocflQuiz.Controls.Features
             _resTitle.ForeColor = Color.FromArgb(35, 35, 35);
             _resTitle.AutoSize = true;
 
+            // ✅ close button same color as panel
             _resClose.Text = "×";
             _resClose.Width = 44;
             _resClose.Height = 44;
             _resClose.FlatStyle = FlatStyle.Flat;
             _resClose.FlatAppearance.BorderSize = 0;
-            _resClose.BackColor = Color.FromArgb(245, 245, 245);
+            _resClose.BackColor = Color.White;
+            _resClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 246, 250);
+            _resClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(238, 240, 246);
             _resClose.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
             _resClose.ForeColor = Color.FromArgb(90, 90, 90);
             _resClose.Cursor = Cursors.Hand;
+            _resClose.TabStop = false;
             _resClose.Click += (_, __) => HideResultOverlay();
 
             _resScore.Text = "0/0";
@@ -444,14 +452,13 @@ namespace TocflQuiz.Controls.Features
                 ApplyReviewToAllCards();
                 ScrollToFirstWrongIfAny();
 
-                // ✅ đổi nút cuối trang thành "Quay về trang chủ"
+                // ✅ sau khi xem kết quả => đổi nút cuối trang thành "Quay về trang chủ"
                 if (_submit != null)
                 {
                     _submit.SetMode(SubmitSectionControl.Mode.GoHome);
-                    _submit.EnableSubmit(true); // để chắc chắn clickable
+                    _submit.EnableSubmit(true);
                 }
             };
-
 
             _btnExit.Click += (_, __) =>
             {
@@ -742,11 +749,9 @@ namespace TocflQuiz.Controls.Features
                 _stack.Controls.Add(card);
             }
 
-            // ===== submit section =====
             _submit = new SubmitSectionControl();
             _submit.Visible = false;
 
-            // reset về mode Submit mỗi lần bắt đầu quiz mới
             _submit.SetMode(SubmitSectionControl.Mode.Submit);
             _submit.EnableSubmit(false);
 
@@ -765,17 +770,20 @@ namespace TocflQuiz.Controls.Features
             }
         }
 
-
         private void SubmitQuiz()
         {
-            if (_submitted) return;
+            // ✅ nếu đã nộp rồi thì mở lại overlay kết quả (tránh dead state)
+            if (_submitted)
+            {
+                ShowResultOverlay(_correct, _total, _elapsed);
+                return;
+            }
 
             _answered = _cards.Count(c => c.IsAnswered);
             UpdateHeader();
 
             if (_answered < _total)
             {
-                // chưa trả lời hết thì chỉ scroll xuống, không chấm
                 ShowSubmitSection();
                 _submit?.EnableSubmit(false);
                 return;
@@ -788,10 +796,14 @@ namespace TocflQuiz.Controls.Features
             foreach (var c in _cards)
             {
                 if (c.IsCorrectNow()) correct++;
-                c.Lock(); // chốt bài: không cho đổi nữa
+                c.Lock();
             }
 
             _correct = correct;
+
+            // ✅ nộp xong thì disable submit (tránh bấm lại chấm điểm)
+            _submit?.EnableSubmit(false);
+
             ShowResultOverlay(_correct, _total, _elapsed);
         }
 
@@ -845,7 +857,6 @@ namespace TocflQuiz.Controls.Features
 
         private void ScrollToFirstWrongIfAny()
         {
-            // scroll tới câu sai/không biết đầu tiên cho tiện xem
             foreach (var c in _cards)
             {
                 if (!c.IsCorrectNow())
@@ -1142,44 +1153,16 @@ namespace TocflQuiz.Controls.Features
         private sealed class SubmitSectionControl : UserControl
         {
             public enum Mode { Submit, GoHome }
-            private Mode _mode = Mode.Submit;
+
             public event EventHandler? SubmitClicked;
             public event EventHandler? GoHomeClicked;
-
 
             private readonly Label _title = new();
             private readonly RoundedButton _btn = new();
             private readonly Label _icon = new();
-            public void SetMode(Mode mode)
-            {
-                _mode = mode;
 
-                if (mode == Mode.Submit)
-                {
-                    _title.Text = "Tất cả đã xong! Bạn đã sẵn sàng gửi bài kiểm tra?";
-                    _btn.Text = "Gửi bài kiểm tra";
+            private Mode _mode = Mode.Submit;
 
-                    _btn.BackColor = Color.FromArgb(62, 92, 255);
-                    _btn.BorderColor = _btn.BackColor;
-                    _btn.ForeColor = Color.White;
-                    _btn.Enabled = true;
-                }
-                else
-                {
-                    _title.Text = "Đã hiển thị kết quả. Bạn muốn quay về trang chủ?";
-                    _btn.Text = "Quay về trang chủ";
-
-                    // dùng style giống nút Thoát (ghost)
-                    _btn.BackColor = Color.FromArgb(245, 246, 250);
-                    _btn.BorderThickness = 1;
-                    _btn.BorderColor = Color.FromArgb(230, 232, 238);
-                    _btn.ForeColor = Color.FromArgb(50, 50, 50);
-                    _btn.Enabled = true;
-                }
-
-                _title.Invalidate();
-                _btn.Invalidate();
-            }
             public SubmitSectionControl()
             {
                 BackColor = Color.FromArgb(245, 245, 245);
@@ -1190,20 +1173,13 @@ namespace TocflQuiz.Controls.Features
                 _icon.Font = new Font("Segoe UI Emoji", 34F, FontStyle.Regular);
                 _icon.AutoSize = true;
 
-                _title.Text = "Tất cả đã xong! Bạn đã sẵn sàng gửi bài kiểm tra?";
                 _title.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
                 _title.ForeColor = Color.FromArgb(35, 35, 35);
                 _title.AutoSize = true;
 
-                _btn.Text = "Gửi bài kiểm tra";
                 _btn.Width = 220;
                 _btn.Height = 46;
-
                 _btn.Radius = 14;
-                _btn.BorderThickness = 0;
-                _btn.BackColor = Color.FromArgb(62, 92, 255);
-                _btn.BorderColor = _btn.BackColor;
-                _btn.ForeColor = Color.White;
                 _btn.Font = new Font("Segoe UI", 11.5F, FontStyle.Bold);
                 _btn.Cursor = Cursors.Hand;
 
@@ -1212,7 +1188,6 @@ namespace TocflQuiz.Controls.Features
                     if (_mode == Mode.Submit) SubmitClicked?.Invoke(this, EventArgs.Empty);
                     else GoHomeClicked?.Invoke(this, EventArgs.Empty);
                 };
-
 
                 var wrap = new TableLayoutPanel
                 {
@@ -1244,6 +1219,8 @@ namespace TocflQuiz.Controls.Features
                 wrap.Controls.Add(btnRow, 0, 2);
 
                 Controls.Add(wrap);
+
+                SetMode(Mode.Submit);
             }
 
             public void SetCardWidth(int w)
@@ -1253,8 +1230,44 @@ namespace TocflQuiz.Controls.Features
                 MaximumSize = new Size(w, 0);
             }
 
+            public void SetMode(Mode mode)
+            {
+                _mode = mode;
+
+                if (mode == Mode.Submit)
+                {
+                    _title.Text = "Tất cả đã xong! Bạn đã sẵn sàng gửi bài kiểm tra?";
+                    _btn.Text = "Gửi bài kiểm tra";
+
+                    _btn.BorderThickness = 0;
+                    _btn.BackColor = Color.FromArgb(62, 92, 255);
+                    _btn.BorderColor = _btn.BackColor;
+                    _btn.ForeColor = Color.White;
+                }
+                else
+                {
+                    _title.Text = "Đã hiển thị kết quả. Bạn muốn quay về trang chủ?";
+                    _btn.Text = "Quay về trang chủ";
+
+                    _btn.BorderThickness = 1;
+                    _btn.BorderColor = Color.FromArgb(230, 232, 238);
+                    _btn.BackColor = Color.FromArgb(245, 246, 250);
+                    _btn.ForeColor = Color.FromArgb(50, 50, 50);
+                }
+
+                _title.Invalidate();
+                _btn.Invalidate();
+            }
+
             public void EnableSubmit(bool enabled)
             {
+                // chỉ áp dụng disabled cho mode Submit
+                if (_mode == Mode.GoHome)
+                {
+                    _btn.Enabled = true;
+                    return;
+                }
+
                 _btn.Enabled = enabled;
                 _btn.BackColor = enabled ? Color.FromArgb(62, 92, 255) : Color.FromArgb(190, 190, 200);
                 _btn.BorderColor = _btn.BackColor;
@@ -1499,6 +1512,8 @@ namespace TocflQuiz.Controls.Features
         }
 
         // ================= Modern pill inputs =================
+
+        // ✅ FIX: arrow up/down clear + enough space
         private sealed class PillNumberBox : UserControl
         {
             private readonly TextBox _txt = new();
@@ -1522,7 +1537,7 @@ namespace TocflQuiz.Controls.Features
                          ControlStyles.UserPaint, true);
 
                 BackColor = Color.FromArgb(245, 246, 250);
-                Padding = new Padding(12, 9, 12, 9);
+                Padding = new Padding(12, 7, 12, 7);
 
                 _txt.BorderStyle = BorderStyle.None;
                 _txt.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
@@ -1554,8 +1569,8 @@ namespace TocflQuiz.Controls.Features
 
                 _btnHost.BackColor = BackColor;
 
-                StyleArrowButton(_btnUp, "▲");
-                StyleArrowButton(_btnDown, "▼");
+                StyleArrowButton(_btnUp, "▴");
+                StyleArrowButton(_btnDown, "▾");
 
                 _btnUp.Click += (_, __) => Value = _value + 1;
                 _btnDown.Click += (_, __) => Value = _value - 1;
@@ -1574,7 +1589,7 @@ namespace TocflQuiz.Controls.Features
 
             private void LayoutInner()
             {
-                int btnW = 36;
+                int btnW = 40;
                 _btnHost.Width = btnW;
                 _btnHost.Height = Height - Padding.Vertical;
                 _btnHost.Location = new Point(Width - Padding.Right - btnW, Padding.Top);
@@ -1594,13 +1609,17 @@ namespace TocflQuiz.Controls.Features
                 b.Dock = DockStyle.None;
                 b.FlatStyle = FlatStyle.Flat;
                 b.FlatAppearance.BorderSize = 0;
-                b.BackColor = BackColor;
-                b.ForeColor = Color.FromArgb(120, 120, 120);
-                b.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-                b.Cursor = Cursors.Hand;
+                b.FlatAppearance.MouseOverBackColor = Color.FromArgb(238, 240, 246);
+                b.FlatAppearance.MouseDownBackColor = Color.FromArgb(232, 234, 240);
 
-                b.MouseEnter += (_, __) => { b.BackColor = Color.FromArgb(238, 240, 246); };
-                b.MouseLeave += (_, __) => { b.BackColor = BackColor; };
+                b.BackColor = BackColor;
+                b.ForeColor = Color.FromArgb(90, 90, 90);
+                b.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+                b.Cursor = Cursors.Hand;
+                b.TabStop = false;
+                b.TextAlign = ContentAlignment.MiddleCenter;
+                b.Padding = new Padding(0);
+                b.UseCompatibleTextRendering = true;
             }
 
             private void ClampAndSync()
@@ -1641,14 +1660,46 @@ namespace TocflQuiz.Controls.Features
                 path.CloseFigure();
                 return path;
             }
+            protected override void OnSizeChanged(EventArgs e)
+            {
+                base.OnSizeChanged(e);
+
+                if (Width <= 0 || Height <= 0) return;
+
+                using var path = Round(new Rectangle(0, 0, Width, Height), 12);
+                Region = new Region(path);
+
+                LayoutInner();
+                Invalidate();
+            }
+
         }
 
+        // ✅ FIX: remove old combo arrow, use custom arrow + dropdown
         private sealed class PillComboBox : UserControl
         {
-            private readonly ComboBox _cb = new();
+            public List<object> Items { get; } = new();
 
-            public ComboBox.ObjectCollection Items => _cb.Items;
-            public int SelectedIndex { get => _cb.SelectedIndex; set => _cb.SelectedIndex = value; }
+            private int _selectedIndex = -1;
+            public int SelectedIndex
+            {
+                get => _selectedIndex;
+                set
+                {
+                    _selectedIndex = value;
+                    SyncText();
+                    SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+                    Invalidate();
+                }
+            }
+
+            public event EventHandler? SelectedIndexChanged;
+
+            private readonly Label _text = new();
+            private readonly ToolStripDropDown _drop = new();
+            private readonly ListBox _list = new();
+
+            private bool _hover;
 
             public PillComboBox()
             {
@@ -1658,25 +1709,90 @@ namespace TocflQuiz.Controls.Features
                          ControlStyles.UserPaint, true);
 
                 BackColor = Color.FromArgb(245, 246, 250);
-                Padding = new Padding(12, 9, 34, 9);
+                Padding = new Padding(12, 8, 34, 8);
+                Cursor = Cursors.Hand;
 
-                _cb.DropDownStyle = ComboBoxStyle.DropDownList;
-                _cb.FlatStyle = FlatStyle.Flat;
-                _cb.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-                _cb.BackColor = BackColor;
-                _cb.ForeColor = Color.FromArgb(40, 40, 40);
+                _text.Dock = DockStyle.Fill;
+                _text.TextAlign = ContentAlignment.MiddleLeft;
+                _text.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+                _text.ForeColor = Color.FromArgb(40, 40, 40);
+                _text.BackColor = Color.Transparent; // ✅ important so arrow not covered
 
-                Controls.Add(_cb);
+                Controls.Add(_text);
 
-                Resize += (_, __) => LayoutInner();
-                LayoutInner();
+                _list.BorderStyle = BorderStyle.None;
+                _list.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
+                _list.ForeColor = Color.FromArgb(40, 40, 40);
+                _list.BackColor = Color.White;
+                _list.IntegralHeight = false;
+
+                _list.Click += (_, __) =>
+                {
+                    if (_list.SelectedIndex >= 0)
+                        SelectedIndex = _list.SelectedIndex;
+                    _drop.Close();
+                };
+
+                var host = new ToolStripControlHost(_list)
+                {
+                    Margin = Padding.Empty,
+                    Padding = Padding.Empty,
+                    AutoSize = false
+                };
+
+                _drop.AutoClose = true;
+                _drop.Padding = Padding.Empty;
+                _drop.Margin = Padding.Empty;
+                _drop.Items.Add(host);
+
+                MouseDown += (_, __) => ToggleDrop();
+                _text.MouseDown += (_, __) => ToggleDrop();
+
+                MouseEnter += (_, __) => { _hover = true; Invalidate(); };
+                MouseLeave += (_, __) => { _hover = false; Invalidate(); };
+                _text.MouseEnter += (_, __) => { _hover = true; Invalidate(); };
+                _text.MouseLeave += (_, __) => { _hover = false; Invalidate(); };
+
+                Resize += (_, __) => _text.Padding = new Padding(Padding.Left, 0, Padding.Right, 0);
+                _text.Padding = new Padding(Padding.Left, 0, Padding.Right, 0);
+
+                SyncText();
             }
 
-            private void LayoutInner()
+            private void ToggleDrop()
             {
-                _cb.Location = new Point(Padding.Left, Padding.Top - 2);
-                _cb.Width = Width - Padding.Horizontal;
-                _cb.Height = Height - Padding.Vertical;
+                if (_drop.Visible)
+                {
+                    _drop.Close();
+                    return;
+                }
+
+                if (Items.Count == 0) return;
+
+                _list.Items.Clear();
+                foreach (var it in Items) _list.Items.Add(it);
+
+                _list.SelectedIndex = Math.Max(-1, Math.Min(Items.Count - 1, SelectedIndex));
+
+                int rows = Math.Min(8, Items.Count);
+                int rowH = 36;
+                int h = rows * rowH + 6;
+
+                int w = Width;
+                _list.Size = new Size(w, h);
+                ((ToolStripControlHost)_drop.Items[0]).Size = new Size(w, h);
+
+                _drop.Show(this, new Point(0, Height + 6));
+            }
+
+            private void SyncText()
+            {
+                if (SelectedIndex < 0 || SelectedIndex >= Items.Count)
+                {
+                    _text.Text = "";
+                    return;
+                }
+                _text.Text = Items[SelectedIndex]?.ToString() ?? "";
             }
 
             protected override void OnPaint(PaintEventArgs e)
@@ -1684,21 +1800,27 @@ namespace TocflQuiz.Controls.Features
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
+                g.Clear(Parent?.BackColor ?? Color.White);
+                g.Clear(Parent?.BackColor ?? Color.White);
                 var rect = new Rectangle(0, 0, Width - 1, Height - 1);
                 using var path = Round(rect, 12);
                 using var fill = new SolidBrush(BackColor);
-                using var pen = new Pen(Color.FromArgb(230, 232, 238), 1);
+
+                var border = _hover ? Color.FromArgb(210, 215, 230) : Color.FromArgb(230, 232, 238);
+                using var pen = new Pen(border, 1);
 
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
 
+                // ✅ new arrow (chevron)
                 var cx = rect.Right - 18;
                 var cy = rect.Top + rect.Height / 2;
-                using var arrowPen = new Pen(Color.FromArgb(130, 130, 130), 2);
+
+                using var arrowPen = new Pen(Color.FromArgb(120, 120, 120), 2);
                 g.DrawLines(arrowPen, new[]
                 {
                     new Point(cx - 6, cy - 2),
-                    new Point(cx, cy + 3),
+                    new Point(cx,     cy + 3),
                     new Point(cx + 6, cy - 2)
                 });
             }
@@ -1714,6 +1836,18 @@ namespace TocflQuiz.Controls.Features
                 path.CloseFigure();
                 return path;
             }
+            protected override void OnSizeChanged(EventArgs e)
+            {
+                base.OnSizeChanged(e);
+
+                if (Width <= 0 || Height <= 0) return;
+
+                using var path = Round(new Rectangle(0, 0, Width, Height), 12);
+                Region = new Region(path);
+
+                Invalidate();
+            }
+
         }
 
         private sealed class ToggleSwitchLike : Control
@@ -1739,16 +1873,34 @@ namespace TocflQuiz.Controls.Features
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                var rTrack = new Rectangle(0, Height / 2 - 10, Width - 1, 20);
-                var rThumb = new Rectangle(Value ? Width - 28 : 2, Height / 2 - 13, 26, 26);
+                // ✅ tránh nền trắng “vuông” bị lộ (nếu có)
+                g.Clear(Parent?.BackColor ?? BackColor);
+
+                int pad = 2;
+                int trackH = 20;
+                int trackY = (Height - trackH) / 2;
+
+                // track full theo width (trừ pad)
+                var rTrack = new Rectangle(pad, trackY, Width - pad * 2 - 1, trackH);
+
+                // thumb theo height (đẹp và luôn sát)
+                int thumb = Height - pad * 2; // ~26 nếu Height=30
+                int thumbX = Value ? (Width - pad - thumb) : pad;
+                int thumbY = pad;
+
+                var rThumb = new Rectangle(thumbX, thumbY, thumb, thumb);
 
                 var trackColor = Value ? Color.FromArgb(62, 92, 255) : Color.FromArgb(210, 210, 210);
+
                 using var brushTrack = new SolidBrush(trackColor);
                 using var penTrack = new Pen(trackColor, 1.2f);
+
                 using var pathTrack = new GraphicsPath();
-                pathTrack.AddArc(rTrack.X, rTrack.Y, 20, 20, 90, 180);
-                pathTrack.AddArc(rTrack.Right - 20, rTrack.Y, 20, 20, 270, 180);
+                int arc = trackH;
+                pathTrack.AddArc(rTrack.X, rTrack.Y, arc, arc, 90, 180);
+                pathTrack.AddArc(rTrack.Right - arc, rTrack.Y, arc, arc, 270, 180);
                 pathTrack.CloseFigure();
+
                 g.FillPath(brushTrack, pathTrack);
                 g.DrawPath(penTrack, pathTrack);
 
@@ -1757,6 +1909,7 @@ namespace TocflQuiz.Controls.Features
                 g.FillEllipse(brushThumb, rThumb);
                 g.DrawEllipse(penThumb, rThumb);
             }
+
         }
 
         // ================= Font helper =================
