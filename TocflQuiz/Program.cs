@@ -63,6 +63,8 @@ namespace TocflQuiz
             // Spaced repetition
             var sr = new SpacedRepetition(cfg.ReviewIntervalsDays);
 
+            
+
             Application.Run(new MainForm(cfg, groups, progressMap, store, sr));
         }
     }
