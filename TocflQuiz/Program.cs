@@ -66,6 +66,7 @@ namespace TocflQuiz
             
 
             Application.Run(new MainForm(cfg, groups, progressMap, store, sr));
+
         }
     }
 }

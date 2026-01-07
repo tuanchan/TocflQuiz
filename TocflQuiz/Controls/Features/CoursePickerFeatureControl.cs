@@ -23,6 +23,23 @@ namespace TocflQuiz.Controls.Features
 
         public CardSet? SelectedSet { get; private set; }
 
+        // Quizlet color palette
+        private static readonly Color QuizletBlue = Color.FromArgb(76, 146, 245);
+        private static readonly Color QuizletBlueDark = Color.FromArgb(46, 116, 215);
+        private static readonly Color QuizletBlueLight = Color.FromArgb(240, 245, 255);
+        private static readonly Color QuizletPrimary = Color.FromArgb(74, 85, 104);
+        private static readonly Color QuizletBorder = Color.FromArgb(226, 232, 240);
+        private static readonly Color QuizletBackground = Color.FromArgb(247, 250, 252);
+
+        // Dark mode colors
+        private static readonly Color DarkBackground = Color.FromArgb(30, 30, 40);
+        private static readonly Color DarkSurface = Color.FromArgb(40, 40, 50);
+        private static readonly Color DarkBorder = Color.FromArgb(60, 60, 70);
+        private static readonly Color DarkText = Color.FromArgb(220, 220, 230);
+        private static readonly Color DarkTextSecondary = Color.FromArgb(160, 160, 170);
+
+        private bool _isDarkMode = false;
+
         public CoursePickerFeatureControl()
         {
             Dock = DockStyle.Fill;
@@ -30,6 +47,82 @@ namespace TocflQuiz.Controls.Features
 
             BuildUi();
             Reload();
+        }
+
+        public void SetDarkMode(bool isDark)
+        {
+            _isDarkMode = isDark;
+            ApplyTheme();
+        }
+
+        private void ApplyTheme()
+        {
+            if (_isDarkMode)
+            {
+                BackColor = DarkSurface;
+                _grid.BackColor = DarkSurface;
+                _txtSearch.BackColor = DarkBackground;
+                _txtSearch.ForeColor = DarkText;
+                _txtSearch.BorderStyle = BorderStyle.FixedSingle;
+                _lblInfo.ForeColor = DarkTextSecondary;
+            }
+            else
+            {
+                BackColor = Color.White;
+                _grid.BackColor = Color.White;
+                _txtSearch.BackColor = Color.White;
+                _txtSearch.ForeColor = QuizletPrimary;
+                _txtSearch.BorderStyle = BorderStyle.FixedSingle;
+                _lblInfo.ForeColor = Color.FromArgb(100, 100, 100);
+            }
+
+            // Refresh all tiles
+            foreach (var kvp in _map)
+            {
+                ApplyTileTheme(kvp.Key, kvp.Key == _selectedBtn);
+            }
+
+            // Refresh feature buttons
+            foreach (Control ctrl in Controls)
+            {
+                RefreshControlTheme(ctrl);
+            }
+        }
+
+        private void RefreshControlTheme(Control ctrl)
+        {
+            if (ctrl is TableLayoutPanel tlp)
+            {
+                tlp.BackColor = _isDarkMode ? DarkSurface : Color.White;
+                foreach (Control child in tlp.Controls)
+                {
+                    RefreshControlTheme(child);
+                }
+            }
+            else if (ctrl is Panel panel)
+            {
+                foreach (Control child in panel.Controls)
+                {
+                    if (child is Button btn && btn.Tag is string)
+                    {
+                        // Feature button
+                        if (_isDarkMode)
+                        {
+                            btn.BackColor = DarkBackground;
+                            btn.ForeColor = DarkText;
+                            btn.FlatAppearance.BorderColor = DarkBorder;
+                            panel.BackColor = Color.Transparent;
+                        }
+                        else
+                        {
+                            btn.BackColor = Color.White;
+                            btn.ForeColor = QuizletPrimary;
+                            btn.FlatAppearance.BorderColor = QuizletBorder;
+                            panel.BackColor = Color.Transparent;
+                        }
+                    }
+                }
+            }
         }
 
         public void Reload()
@@ -74,8 +167,8 @@ namespace TocflQuiz.Controls.Features
                 RowCount = 3
             };
 
-            // Toolbar (2 hàng)
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+            // Toolbar (2 hàng) - tăng height để chứa đủ text
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 170));
             // Grid
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             // Bottom search
@@ -117,17 +210,20 @@ namespace TocflQuiz.Controls.Features
                 RowCount = 1,
                 Margin = new Padding(0, 8, 0, 0)
             };
-            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 420));
+            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300)); // giảm từ 420 xuống 300
             bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
             _txtSearch.Dock = DockStyle.Fill;
             _txtSearch.Margin = new Padding(0, 10, 10, 10);
-            _txtSearch.PlaceholderText = "Tìm kiếm học phần...";
+            _txtSearch.PlaceholderText = "Tìm kiếm...";
+            _txtSearch.Font = new Font("Segoe UI", 10F);
+            _txtSearch.BorderStyle = BorderStyle.FixedSingle;
             _txtSearch.TextChanged += (_, __) => Reload();
 
             _lblInfo.Dock = DockStyle.Fill;
             _lblInfo.TextAlign = ContentAlignment.MiddleLeft;
-            _lblInfo.ForeColor = Color.FromArgb(90, 90, 90);
+            _lblInfo.Font = new Font("Segoe UI", 9.5F);
+            _lblInfo.ForeColor = Color.FromArgb(100, 100, 100);
 
             bottom.Controls.Add(_txtSearch, 0, 0);
             bottom.Controls.Add(_lblInfo, 1, 0);
@@ -144,22 +240,60 @@ namespace TocflQuiz.Controls.Features
             var p = new Panel
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(8),
-                BackColor = Color.FromArgb(245, 247, 255),
+                Margin = new Padding(5), // giảm margin
+                BackColor = Color.Transparent,
             };
 
             var btn = new Button
             {
                 Dock = DockStyle.Fill,
                 Text = text,
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 11.5F, FontStyle.Bold), // tăng font lên 11.5
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(245, 247, 255),
-                ForeColor = Color.FromArgb(35, 35, 35),
+                BackColor = Color.White,
+                ForeColor = QuizletPrimary,
                 Cursor = Cursors.Hand,
-                Tag = featureKey
+                Tag = featureKey,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Padding = new Padding(10, 6, 10, 6), // tăng padding
+                AutoSize = false
             };
-            btn.FlatAppearance.BorderSize = 0;
+
+            btn.FlatAppearance.BorderSize = 2;
+            btn.FlatAppearance.BorderColor = QuizletBorder;
+
+            // Hover effects
+            btn.MouseEnter += (s, e) =>
+            {
+                if (_isDarkMode)
+                {
+                    btn.BackColor = Color.FromArgb(50, 50, 60);
+                    btn.ForeColor = QuizletBlue;
+                    btn.FlatAppearance.BorderColor = QuizletBlue;
+                }
+                else
+                {
+                    btn.BackColor = QuizletBlueLight;
+                    btn.ForeColor = QuizletBlue;
+                    btn.FlatAppearance.BorderColor = QuizletBlue;
+                }
+            };
+
+            btn.MouseLeave += (s, e) =>
+            {
+                if (_isDarkMode)
+                {
+                    btn.BackColor = DarkBackground;
+                    btn.ForeColor = DarkText;
+                    btn.FlatAppearance.BorderColor = DarkBorder;
+                }
+                else
+                {
+                    btn.BackColor = Color.White;
+                    btn.ForeColor = QuizletPrimary;
+                    btn.FlatAppearance.BorderColor = QuizletBorder;
+                }
+            };
 
             btn.Click += (_, __) =>
             {
@@ -184,14 +318,14 @@ namespace TocflQuiz.Controls.Features
 
             var b = new Button
             {
-                Width = 120,
-                Height = 120,
+                Width = 140, // tăng từ 120
+                Height = 140, // tăng từ 120
                 Margin = new Padding(12),
                 Text = title,
                 Tag = set,
                 BackColor = Color.White,
-                ForeColor = Color.FromArgb(35, 35, 35),
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                ForeColor = QuizletPrimary,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold), // tăng font
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -199,11 +333,37 @@ namespace TocflQuiz.Controls.Features
             };
 
             b.FlatAppearance.BorderSize = 2;
-            b.FlatAppearance.BorderColor = Color.FromArgb(225, 225, 225);
+            b.FlatAppearance.BorderColor = QuizletBorder;
+
+            // Hover effect
+            b.MouseEnter += (s, e) =>
+            {
+                if (_selectedBtn != b)
+                {
+                    if (_isDarkMode)
+                    {
+                        b.BackColor = Color.FromArgb(50, 50, 60);
+                        b.FlatAppearance.BorderColor = QuizletBlue;
+                    }
+                    else
+                    {
+                        b.BackColor = QuizletBlueLight;
+                        b.FlatAppearance.BorderColor = QuizletBlue;
+                    }
+                }
+            };
+
+            b.MouseLeave += (s, e) =>
+            {
+                if (_selectedBtn != b)
+                {
+                    ApplyTileTheme(b, false);
+                }
+            };
 
             b.Click += (_, __) => SelectTile(b);
 
-            // double click: chọn học phần + vào luôn flashcards (giống kiểu “chọn nhanh”)
+            // double click: chọn học phần + vào luôn flashcards
             b.DoubleClick += (_, __) =>
             {
                 SelectTile(b);
@@ -227,17 +387,46 @@ namespace TocflQuiz.Controls.Features
             SelectedSetChanged?.Invoke(SelectedSet);
         }
 
-        private static void ApplyTileSelected(Button b, bool selected)
+        private void ApplyTileSelected(Button b, bool selected)
         {
-            if (selected)
+            ApplyTileTheme(b, selected);
+        }
+
+        private void ApplyTileTheme(Button b, bool selected)
+        {
+            if (_isDarkMode)
             {
-                b.BackColor = Color.FromArgb(242, 247, 255);
-                b.FlatAppearance.BorderColor = Color.FromArgb(140, 170, 255);
+                if (selected)
+                {
+                    b.BackColor = Color.FromArgb(46, 116, 215);
+                    b.ForeColor = Color.White;
+                    b.FlatAppearance.BorderColor = QuizletBlue;
+                    b.FlatAppearance.BorderSize = 3;
+                }
+                else
+                {
+                    b.BackColor = DarkBackground;
+                    b.ForeColor = DarkText;
+                    b.FlatAppearance.BorderColor = DarkBorder;
+                    b.FlatAppearance.BorderSize = 2;
+                }
             }
             else
             {
-                b.BackColor = Color.White;
-                b.FlatAppearance.BorderColor = Color.FromArgb(225, 225, 225);
+                if (selected)
+                {
+                    b.BackColor = QuizletBlueLight;
+                    b.ForeColor = QuizletBlue;
+                    b.FlatAppearance.BorderColor = QuizletBlue;
+                    b.FlatAppearance.BorderSize = 3;
+                }
+                else
+                {
+                    b.BackColor = Color.White;
+                    b.ForeColor = QuizletPrimary;
+                    b.FlatAppearance.BorderColor = QuizletBorder;
+                    b.FlatAppearance.BorderSize = 2;
+                }
             }
         }
 
@@ -245,7 +434,7 @@ namespace TocflQuiz.Controls.Features
         {
             // convert underscore to space
             s = (s ?? "").Replace("_", " ").Trim();
-            if (s.Length <= 12) return s;
+            if (s.Length <= 14) return s; // tăng từ 12 lên 14
 
             var words = s.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             if (words.Length <= 1) return s;
@@ -261,7 +450,7 @@ namespace TocflQuiz.Controls.Features
                     continue;
                 }
 
-                if ((cur.Length + 1 + w.Length) <= 12)
+                if ((cur.Length + 1 + w.Length) <= 14) // tăng từ 12 lên 14
                 {
                     cur += " " + w;
                 }

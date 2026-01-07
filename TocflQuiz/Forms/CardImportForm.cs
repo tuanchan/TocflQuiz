@@ -28,7 +28,15 @@ namespace TocflQuiz.Forms
 
         private FlowLayoutPanel flPreview = new();
         private Label lblCount = new();
-
+        // ===== Nice UI dialog (thông báo đẹp) =====
+        private OverlayPanel? _uiOverlay;
+        private RoundedPanel? _uiDialog;
+        private Label? _uiIcon;
+        private Label? _uiTitle;
+        private Label? _uiMessage;
+        private Button? _uiOk;
+        private Button? _uiClose;
+        private Action? _uiOkAction;
         private CardItem[] _lastPreview = Array.Empty<CardItem>();
 
         private const string TitleWatermark = "Tên học phần (ví dụ: TOCFL A2 - Week 1)";
@@ -81,12 +89,11 @@ namespace TocflQuiz.Forms
                 Margin = new Padding(0)
             };
 
-            // ✅ tăng height header để txtTitle không bị đụng phần nhập liệu
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));   // header (tăng từ 60 -> 70)
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 60));    // raw
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // options
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));       // preview header
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 55));    // preview list
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
 
             // ===== HEADER: txtTitle + buttons =====
             var header = new TableLayoutPanel
@@ -107,7 +114,7 @@ namespace TocflQuiz.Forms
                 BorderColor = Border,
                 Radius = 12,
                 Padding = new Padding(12, 9, 12, 9),
-                Margin = new Padding(0, 6, 12, 6) // ✅ không còn bị cắt bo góc dưới
+                Margin = new Padding(0, 6, 12, 6)
 
             };
 
@@ -153,18 +160,10 @@ namespace TocflQuiz.Forms
                 BorderColor = Border,
                 Radius = 14,
                 Padding = new Padding(14),
-                Margin = new Padding(0, 16, 0, 0) // ✅ tách hộp ra khỏi nhau
+                Margin = new Padding(0, 16, 0, 0)
             };
 
-            var rawTitle = new Label
-            {
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 26,
-                Text = "NHẬP DỮ LIỆU (copy paste từ Word/Excel/Google Docs...)",
-                ForeColor = TextColor,
-                Font = new Font("Segoe UI", 10.5F, FontStyle.Bold)
-            };
+
 
             txtRaw = new TextBox
             {
@@ -176,9 +175,22 @@ namespace TocflQuiz.Forms
                 BackColor = CardColor,
                 ForeColor = TextColor
             };
+            var rawHeader = CreateSectionHeader("NHẬP DỮ LIỆU (copy paste từ Word/Excel/Google Docs...)");
+            rawHeader.Margin = new Padding(0, 0, 0, 8);
+
+            var rawSection = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
 
             rawCard.Controls.Add(txtRaw);
-            rawCard.Controls.Add(rawTitle);
+
+            rawSection.Controls.Add(rawCard);
+            rawSection.Controls.Add(rawHeader);
+
 
             // ===== OPTIONS (mở rộng để chứa đủ text) =====
             var optionsRow = new TableLayoutPanel
@@ -187,20 +199,33 @@ namespace TocflQuiz.Forms
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 ColumnCount = 2,
-                Margin = new Padding(0, 16, 0, 16), // tăng margin top/bottom
+                Margin = new Padding(0, 16, 0, 16),
                 BackColor = Color.Transparent
             };
             optionsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             optionsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
 
-            var tdCard = CreateOptionCard("Giữa thuật ngữ và định nghĩa");
-            var cardCard = CreateOptionCard("Giữa các thẻ");
+            optionsRow.RowCount = 2;
+            optionsRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            optionsRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var tdHeader = CreateSectionHeader("Giữa thuật ngữ và định nghĩa");
+            tdHeader.Margin = new Padding(0, 0, 0, 6);
+
+            var cardHeader = CreateSectionHeader("Giữa các thẻ");
+            cardHeader.Margin = new Padding(0, 0, 0, 6);
+
+            var tdCard = CreateOptionCard();
+            var cardCard = CreateOptionCard();
 
             BuildSepOptions_TD(tdCard.ContentHost);
             BuildSepOptions_Card(cardCard.ContentHost);
 
-            optionsRow.Controls.Add(tdCard.Wrapper, 0, 0);
-            optionsRow.Controls.Add(cardCard.Wrapper, 1, 0);
+            optionsRow.Controls.Add(tdHeader, 0, 0);
+            optionsRow.Controls.Add(cardHeader, 1, 0);
+            optionsRow.Controls.Add(tdCard.Wrapper, 0, 1);
+            optionsRow.Controls.Add(cardCard.Wrapper, 1, 1);
+
 
             // ===== PREVIEW HEADER =====
             var previewHeader = new FlowLayoutPanel
@@ -268,20 +293,195 @@ namespace TocflQuiz.Forms
 
             // ===== Add to root =====
             root.Controls.Add(header, 0, 0);
-            root.Controls.Add(rawCard, 0, 1);
+            root.Controls.Add(rawSection, 0, 1);
+
             root.Controls.Add(optionsRow, 0, 2);
             root.Controls.Add(previewHeader, 0, 3);
             root.Controls.Add(previewWrap, 0, 4);
 
             Controls.Clear();
             Controls.Add(root);
-
+            BuildUiDialog();
             rbTD_Tab.Checked = true;
             rbCard_NewLine.Checked = true;
             UpdateCustomState();
         }
+        private void BuildUiDialog()
+        {
+            if (_uiOverlay != null) return;
 
-        private (RoundedPanel Wrapper, Panel ContentHost) CreateOptionCard(string title)
+            _uiOverlay = new OverlayPanel
+            {
+                Dock = DockStyle.Fill,
+                Visible = false,
+                BackColor = Color.Transparent
+            };
+
+            _uiDialog = new RoundedPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FillColor = Color.White,
+                BorderColor = Color.FromArgb(229, 231, 235),
+                Radius = 16,
+                Padding = new Padding(80, 32, 80, 32), // Increased padding more
+                Margin = new Padding(0),
+                BackColor = Color.Transparent
+            };
+
+            _uiIcon = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 32F, FontStyle.Bold), // Larger icon
+                ForeColor = TextColor,
+                Text = "⚠️",
+                Margin = new Padding(0, 0, 14, 0)
+            };
+
+            _uiTitle = new Label
+            {
+                AutoSize = false,
+                Width = 280, // Wider
+                Font = new Font("Segoe UI", 14F, FontStyle.Bold), // Larger font
+                ForeColor = TextColor,
+                Text = "",
+                Margin = new Padding(0, 6, 0, 0)
+            };
+
+            var header = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                ColumnCount = 2, // Changed from 3 to 2 (removed close button)
+                BackColor = Color.Transparent,
+                Margin = new Padding(0, 0, 0, 20)
+            };
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.Controls.Add(_uiIcon, 0, 0);
+            header.Controls.Add(_uiTitle, 1, 0);
+
+            _uiMessage = new Label
+            {
+                AutoSize = false,
+                Width = 450, // Much wider
+                Font = new Font("Segoe UI", 11.5F, FontStyle.Regular), // Slightly larger
+                ForeColor = Muted,
+                Text = "",
+                Margin = new Padding(0, 0, 0, 28)
+            };
+
+            _uiOk = new Button { Text = "OK" };
+            StylePrimaryPill(_uiOk);
+            _uiOk.Width = 140; // Wider button
+            _uiOk.Height = 44; // Taller button
+
+            var actions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+            actions.Controls.Add(_uiOk);
+
+            _uiDialog.Controls.Add(actions);
+            _uiDialog.Controls.Add(_uiMessage);
+            _uiDialog.Controls.Add(header);
+
+            _uiOverlay.Controls.Add(_uiDialog);
+
+            void CenterDialog()
+            {
+                if (_uiOverlay == null || _uiDialog == null) return;
+                _uiDialog.Left = (_uiOverlay.ClientSize.Width - _uiDialog.Width) / 2;
+                _uiDialog.Top = (_uiOverlay.ClientSize.Height - _uiDialog.Height) / 2;
+            }
+
+            _uiOverlay.SizeChanged += (_, __) => CenterDialog();
+            _uiDialog.SizeChanged += (_, __) => CenterDialog();
+
+            _uiOk.Click += (_, __) =>
+            {
+                var act = _uiOkAction;
+                HideUiDialog();
+                act?.Invoke();
+            };
+
+            Controls.Add(_uiOverlay);
+            _uiOverlay.BringToFront();
+        }
+
+        private void ShowUiDialog(string title, string message, bool warning, Action? onOk = null)
+        {
+            BuildUiDialog();
+
+            _uiOkAction = onOk;
+            _uiTitle!.Text = title;
+            _uiMessage!.Text = message;
+            _uiIcon!.Text = warning ? "⚠️" : "✅";
+
+            _uiOverlay!.Visible = true;
+            _uiOverlay.BringToFront();
+            _uiDialog!.BringToFront();
+        }
+
+        private void HideUiDialog()
+        {
+            if (_uiOverlay == null) return;
+            _uiOkAction = null;
+            _uiOverlay.Visible = false;
+        }
+
+        private sealed class OverlayPanel : Panel
+        {
+            public OverlayPanel()
+            {
+                BackColor = Color.Transparent;
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+                UpdateStyles();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                // Use semi-transparent dark overlay
+                using var b = new SolidBrush(Color.FromArgb(120, 0, 0, 0));
+                e.Graphics.FillRectangle(b, ClientRectangle);
+                base.OnPaint(e);
+            }
+        }
+
+        private static FlowLayoutPanel CreateSectionHeader(string text)
+        {
+            var header = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Margin = new Padding(0),
+                Padding = new Padding(0, 6, 0, 6),
+                BackColor = Color.Transparent
+            };
+
+            var lbl = new Label
+            {
+                AutoSize = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                ForeColor = TextColor,
+                Text = text,
+                Margin = new Padding(0)
+            };
+
+            header.Controls.Add(lbl);
+            return header;
+        }
+
+        private (RoundedPanel Wrapper, Panel ContentHost) CreateOptionCard()
         {
             var card = new RoundedPanel
             {
@@ -291,17 +491,8 @@ namespace TocflQuiz.Forms
                 FillColor = CardColor,
                 BorderColor = Border,
                 Radius = 14,
-                Padding = new Padding(20, 16, 16, 20), // ✅ tăng padding để chứa text thoải mái
+                Padding = new Padding(16, 16, 16, 18),
                 Margin = new Padding(0)
-            };
-
-            var t = new Label
-            {
-                AutoSize = true,
-                Text = title,
-                ForeColor = TextColor,
-                Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
-                Margin = new Padding(0, 0, 0, 16) // ✅ tăng margin bottom
             };
 
             var host = new Panel
@@ -315,8 +506,6 @@ namespace TocflQuiz.Forms
             };
 
             card.Controls.Add(host);
-            card.Controls.Add(t);
-
             return (card, host);
         }
 
@@ -405,7 +594,7 @@ namespace TocflQuiz.Forms
             rb.AutoSize = true;
             rb.ForeColor = TextColor;
             rb.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            rb.Margin = new Padding(0, 5, 0, 5); // ✅ tăng margin để dễ nhìn
+            rb.Margin = new Padding(0, 5, 0, 5);
         }
 
         private void Wire()
@@ -451,15 +640,13 @@ namespace TocflQuiz.Forms
 
             if (rbTD_Custom.Checked && string.IsNullOrEmpty(termDefSep))
             {
-                MessageBox.Show("Bạn đang chọn 'Tùy chỉnh' nhưng chưa nhập ký tự phân cách.", "Thiếu phân cách",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowUiDialog("Thiếu phân cách", "Bạn đang chọn 'Tùy chỉnh' nhưng chưa nhập ký tự phân cách.", warning: true);
                 return;
             }
 
             if (rbCard_Custom.Checked && string.IsNullOrEmpty(cardSep))
             {
-                MessageBox.Show("Bạn đang chọn 'Tùy chỉnh' nhưng chưa nhập ký tự phân cách.", "Thiếu phân cách",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowUiDialog("Thiếu phân cách", "Bạn đang chọn 'Tùy chỉnh' nhưng chưa nhập ký tự phân cách.", warning: true);
                 return;
             }
 
@@ -468,8 +655,7 @@ namespace TocflQuiz.Forms
             {
                 flPreview.Controls.Clear();
                 lblCount.Text = "";
-                MessageBox.Show("Bạn chưa nhập dữ liệu.", "Thiếu dữ liệu",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowUiDialog("Thiếu dữ liệu", "Bạn chưa nhập dữ liệu.", warning: true);
                 _lastPreview = Array.Empty<CardItem>();
                 return;
             }
@@ -519,14 +705,21 @@ namespace TocflQuiz.Forms
             if (_lastPreview.Length == 0) DoPreview();
             if (_lastPreview.Length == 0)
             {
-                MessageBox.Show("Chưa có thẻ nào hợp lệ để lưu.", "Không có dữ liệu",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowUiDialog("Không có dữ liệu", "Chưa có thẻ nào hợp lệ để lưu.", warning: true);
                 return;
+
             }
 
             var title = GetWatermarkSafeText(txtTitle, TitleWatermark).Trim();
             if (string.IsNullOrWhiteSpace(title))
-                title = $"Set {DateTime.Now:yyyy-MM-dd HH:mm}";
+            {
+                ShowUiDialog("Thiếu tên học phần",
+                    "Bạn chưa đặt tên học phần.\nHãy nhập tên học phần trước khi lưu.",
+                    warning: true,
+                    onOk: () => txtTitle.Focus());
+                return;
+            }
+
 
             var rawSafe = GetWatermarkSafeText(txtRaw, RawWatermark);
 
@@ -544,11 +737,16 @@ namespace TocflQuiz.Forms
                 cardSep: GetCardSep()
             );
 
-            MessageBox.Show($"Đã lưu {set.Items.Count} thẻ.\nFolder:\n{dir}", "OK",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ShowUiDialog("Đã lưu",
+     $"Đã lưu {set.Items.Count} thẻ.\nFolder:\n{dir}",
+     warning: false,
+     onOk: () =>
+     {
+         DialogResult = DialogResult.OK;
+         Close();
+     });
+            return;
 
-            DialogResult = DialogResult.OK;
-            Close();
         }
 
         // ===== Preview Row =====
@@ -659,7 +857,6 @@ namespace TocflQuiz.Forms
             RoundButton(b, 12);
         }
 
-        // ✅ Nút phụ màu trắng với viền
         private static void StyleSecondaryPill(Button b)
         {
             b.AutoSize = false;
@@ -675,7 +872,7 @@ namespace TocflQuiz.Forms
             b.Cursor = Cursors.Hand;
             b.Margin = new Padding(10, 0, 0, 0);
 
-            RoundButton(b, 12); // giữ bo tròn y như hiện tại
+            RoundButton(b, 12);
         }
 
 
@@ -754,7 +951,7 @@ namespace TocflQuiz.Forms
             public RoundedPanel()
             {
                 BackColor = Color.Transparent;
-                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
                 UpdateStyles();
             }
 
@@ -762,15 +959,16 @@ namespace TocflQuiz.Forms
             {
                 e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-                // ✅ lấy nền thật: nếu parent Transparent thì dùng nền của Form
-                var bg = Parent?.BackColor ?? Color.White;
-                if (bg.A == 0 || bg == Color.Transparent)
-                    bg = FindForm()?.BackColor ?? Color.White;
+                // Only clear for non-dialog panels
+                if (!(Parent is OverlayPanel))
+                {
+                    var bg = Parent?.BackColor ?? Color.White;
+                    if (bg.A == 0 || bg == Color.Transparent)
+                        bg = FindForm()?.BackColor ?? Color.White;
+                    e.Graphics.Clear(bg);
+                }
 
-                e.Graphics.Clear(bg);
-
-                // ✅ inset thêm để border/bo góc không bị clip (cắt xén 1-2px)
-                const int inset = 2;                 // muốn hết hẳn thì 2, DPI cao có thể 3
+                const int inset = 2;
                 var rect = new Rectangle(inset, inset, Width - 1 - inset * 2, Height - 1 - inset * 2);
                 if (rect.Width <= 0 || rect.Height <= 0) return;
 

@@ -24,6 +24,9 @@ namespace TocflQuiz.Controls.Features
         private readonly Label _resPercent = new();
         private readonly Label _resTime = new();
 
+        // donut chart to show percentage correct
+        private readonly ProgressCircle _resCircle = new();
+
         private readonly Button _resClose = new();
         private readonly RoundedButton _btnViewResult = new();
         private readonly RoundedButton _btnExit = new();
@@ -58,6 +61,15 @@ namespace TocflQuiz.Controls.Features
         private readonly PillNumberBox _pillCount = new();
         private readonly PillComboBox _pillAnswer = new();
         private readonly ToggleSwitchLike _tgMulti = new();
+        public event Action<CardSet, QuizConfig>? EssayModeRequested;
+
+
+        // toggle for essay/written mode (mutually exclusive with _tgMulti)
+        private readonly ToggleSwitchLike _tgEssay = new();
+
+        // new: quiz type selector (multiple choice vs written). Currently unused in the UI but kept
+        // for future compatibility. Mode selection is handled via the toggles.
+        private readonly PillComboBox _pillQuizType = new();
 
         private readonly RoundedButton _btnStart = new();
 
@@ -69,6 +81,18 @@ namespace TocflQuiz.Controls.Features
         private int _answered;
         private int _total;
         private int _correct;
+
+        // =====================
+        // Mode selection and essay control
+        // The quiz can operate in two modes: MultiChoice (default) or Essay.
+        // Users choose the mode via the toggles in the setup dialog.  When the essay mode is
+        // selected, the MultiChoice mode is deselected and vice versa.
+        private enum QuizMode { MultiChoice, Essay }
+        private QuizMode _selectedMode = QuizMode.MultiChoice;
+
+        // Cached instance of the essay quiz control (for essay/written answer quizzes).  It is
+        // created on demand the first time the user selects the essay mode and reused afterwards.
+        private QuizEssayControl? _essay;
 
         // ===== fonts for Traditional Chinese =====
         private static readonly string[] TcFontFamilies =
@@ -110,7 +134,8 @@ namespace TocflQuiz.Controls.Features
 
             _pillCount.Maximum = Math.Max(0, max);
             _pillCount.Minimum = max > 0 ? 1 : 0;
-            _pillCount.Value = max > 0 ? Math.Min(20, max) : 0;
+            // default number of questions is equal to the total available questions rather than capped at 20
+            _pillCount.Value = max > 0 ? max : 0;
 
             ShowEmptyState();
             ShowSetup();
@@ -237,9 +262,19 @@ namespace TocflQuiz.Controls.Features
             _lblMax.ForeColor = Color.FromArgb(60, 60, 60);
             _lblMax.AutoSize = true;
 
+            // label for the answer mode selector
             var lblAnswer = new Label
             {
                 Text = "Trả lời bằng",
+                Font = new Font("Segoe UI", 11.5F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 60, 60),
+                AutoSize = true
+            };
+
+            // label for quiz type selector
+            var lblQuizType = new Label
+            {
+                Text = "Thể loại kiểm tra",
                 Font = new Font("Segoe UI", 11.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 60, 60),
                 AutoSize = true
@@ -257,6 +292,25 @@ namespace TocflQuiz.Controls.Features
                 "Cả hai"
             });
             _pillAnswer.SelectedIndex = 0;
+
+            // configure quiz type selector
+            _pillQuizType.Width = 240;
+            _pillQuizType.Height = 46;
+            // Provide two basic test modes: multiple choice and written answer
+            _pillQuizType.Items.Clear();
+            _pillQuizType.Items.AddRange(new object[]
+            {
+                "Trắc nghiệm (4 đáp án)",
+                "Điền đáp án"
+            });
+            _pillQuizType.SelectedIndex = 0;
+
+            // when user changes quiz type, toggle multiple choice accordingly
+            _pillQuizType.SelectedIndexChanged += (_, __) =>
+            {
+                // index 0 corresponds to multiple choice (Trắc nghiệm)
+                _tgMulti.Value = (_pillQuizType.SelectedIndex == 0);
+            };
 
             _tgMulti.Value = true;
 
@@ -313,10 +367,12 @@ namespace TocflQuiz.Controls.Features
             headerGrid.Controls.Add(rightHeader, 1, 0);
             header.Controls.Add(headerGrid);
 
+            // inputs section: only contains the question count and answer mode rows
             var inputs = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
+                // two rows: question count, answer mode
                 RowCount = 2,
                 BackColor = Color.White
             };
@@ -346,21 +402,35 @@ namespace TocflQuiz.Controls.Features
             inputs.Controls.Add(rowAnswerLeft, 0, 1);
             inputs.Controls.Add(rowAnswerRight, 1, 1);
 
+
             var sep = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Color.FromArgb(235, 235, 235) };
 
+            // toggles panel: first row for quiz type selection, second row for multiple choice toggle
             var toggles = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 1,
+                RowCount = 2,
                 BackColor = Color.White,
                 Padding = new Padding(0, 10, 0, 0)
             };
             toggles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 80));
             toggles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
+            // two rows: one for multiple choice toggle, one for essay toggle
+            toggles.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
             toggles.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
 
+            // first toggle row: multiple choice mode
             AddToggleRow(toggles, 0, "Trắc nghiệm (4 đáp án)", _tgMulti);
+            // second toggle row: essay/written mode
+            AddToggleRow(toggles, 1, "Tự luận", _tgEssay);
+
+            // set default selection and attach mutual exclusion handlers
+            _tgMulti.Value = true;
+            _tgEssay.Value = false;
+            _selectedMode = QuizMode.MultiChoice;
+            _tgMulti.Click += TgMulti_Click;
+            _tgEssay.Click += TgEssay_Click;
 
             var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
             body.Controls.Add(toggles);
@@ -434,7 +504,8 @@ namespace TocflQuiz.Controls.Features
             _resScore.AutoSize = true;
 
             _resPercent.Text = "0%";
-            _resPercent.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
+            // make wrong count font the same size as the correct count
+            _resPercent.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
             _resPercent.ForeColor = Color.FromArgb(90, 90, 90);
             _resPercent.AutoSize = true;
 
@@ -510,6 +581,7 @@ namespace TocflQuiz.Controls.Features
                 Padding = new Padding(22)
             };
 
+            // new summary layout: left column shows correct and wrong counts stacked, right column shows a donut chart of the correct percentage
             var summary = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -517,26 +589,40 @@ namespace TocflQuiz.Controls.Features
                 RowCount = 2,
                 BackColor = summaryWrap.BackColor
             };
-            summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
-            summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
+            summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+            // increase row heights to give more space for labels and time
+            summary.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
             summary.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
-            summary.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
 
-            var scoreHost = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
-            scoreHost.Controls.Add(_resScore);
-            scoreHost.Layout += (_, __) => _resScore.Location = new Point(0, 10);
+            // left block hosts the correct and wrong count labels
+            var leftBlock = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
+            leftBlock.Controls.Add(_resScore);
+            leftBlock.Controls.Add(_resPercent);
+            leftBlock.Layout += (_, __) =>
+            {
+                // position 'Đúng' on top and 'Sai' below with enough spacing for larger fonts
+                _resScore.Location = new Point(0, 4);
+                _resPercent.Location = new Point(0, 56);
+            };
 
-            var percentHost = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
-            percentHost.Controls.Add(_resPercent);
-            percentHost.Layout += (_, __) =>
-                _resPercent.Location = new Point(percentHost.ClientSize.Width - _resPercent.Width, 28);
+            // right block hosts the donut chart showing percentage correct
+            var donutBlock = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
+            donutBlock.Controls.Add(_resCircle);
+            donutBlock.Layout += (_, __) =>
+            {
+                _resCircle.Location = new Point(
+                    Math.Max(0, (donutBlock.ClientSize.Width - _resCircle.Width) / 2),
+                    Math.Max(0, (donutBlock.ClientSize.Height - _resCircle.Height) / 2)
+                );
+            };
 
             var timeHost = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
             timeHost.Controls.Add(_resTime);
             timeHost.Layout += (_, __) => _resTime.Location = new Point(0, 8);
 
-            summary.Controls.Add(scoreHost, 0, 0);
-            summary.Controls.Add(percentHost, 1, 0);
+            summary.Controls.Add(leftBlock, 0, 0);
+            summary.Controls.Add(donutBlock, 1, 0);
             summary.Controls.Add(timeHost, 0, 1);
             summary.SetColumnSpan(timeHost, 2);
 
@@ -611,9 +697,57 @@ namespace TocflQuiz.Controls.Features
             _resultDlg.Location = new Point(x, y);
         }
 
+        /// <summary>
+        /// Event handler for the multi-choice toggle.  Ensures mutual exclusion with the essay toggle
+        /// and updates the selected quiz mode accordingly.  If the user attempts to deselect the
+        /// multi-choice toggle (so that both toggles are off), the toggle is forced back on.
+        /// </summary>
+        private void TgMulti_Click(object? sender, EventArgs e)
+        {
+            // if toggled on, turn off essay and set mode; else prevent both off
+            if (_tgMulti.Value)
+            {
+                _tgEssay.Value = false;
+                _tgEssay.Invalidate();
+                _selectedMode = QuizMode.MultiChoice;
+            }
+            else
+            {
+                // Do not allow both toggles to be false
+                _tgMulti.Value = true;
+                _tgMulti.Invalidate();
+            }
+        }
+
+        /// <summary>
+        /// Event handler for the essay/written-answer toggle.  Ensures mutual exclusion with the
+        /// multi-choice toggle and updates the selected quiz mode accordingly.  If the user attempts
+        /// to deselect the essay toggle (so that both toggles are off), the toggle is forced back on.
+        /// </summary>
+        private void TgEssay_Click(object? sender, EventArgs e)
+        {
+            if (_tgEssay.Value)
+            {
+                _tgMulti.Value = false;
+                _tgMulti.Invalidate();
+                _selectedMode = QuizMode.Essay;
+            }
+            else
+            {
+                // Do not allow both toggles to be false
+                _tgEssay.Value = true;
+                _tgEssay.Invalidate();
+            }
+        }
+
         private void Wire()
         {
-            _btnClose.Click += (_, __) => HideSetup();
+            _btnClose.Click += (_, __) =>
+            {
+                // When closing the setup dialog via the × button, return to the course list
+                HideSetup();
+                ExitToCourseListRequested?.Invoke();
+            };
 
             _btnStart.Click += (_, __) =>
             {
@@ -628,12 +762,22 @@ namespace TocflQuiz.Controls.Features
                 {
                     Count = (int)_pillCount.Value,
                     AnswerMode = (AnswerMode)_pillAnswer.SelectedIndex,
-                    EnableMultipleChoice = _tgMulti.Value
+                    EnableMultipleChoice = (_selectedMode == QuizMode.MultiChoice)
                 };
 
                 HideSetup();
-                StartQuiz();
+
+                if (_selectedMode == QuizMode.MultiChoice)
+                {
+                    StartQuiz();
+                }
+                else
+                {
+                    // ✅ CHUYỂN HẲN SANG CardForm (host) để show QuizEssayControl
+                    EssayModeRequested?.Invoke(_set, _cfg);
+                }
             };
+
         }
 
         private void ShowSetup()
@@ -648,11 +792,17 @@ namespace TocflQuiz.Controls.Features
         private void ShowResultOverlay(int correct, int total, TimeSpan elapsed)
         {
             _resSetTitle.Text = _set?.Title ?? "(chưa chọn)";
-            _resScore.Text = $"{correct}/{total}";
 
-            int percent = total <= 0 ? 0 : (int)Math.Round((correct * 100.0) / total);
-            _resPercent.Text = $"{percent}%";
+            // display correct and wrong counts instead of a single fraction
+            int wrong = Math.Max(0, total - correct);
+            _resScore.Text = $"Đúng: {correct}";
+            _resPercent.Text = $"Sai: {wrong}";
 
+            // update the donut chart with the correct percentage
+            int percent = total > 0 ? (int)Math.Round((correct * 100.0) / total) : 0;
+            _resCircle.Percent = Math.Max(0, Math.Min(100, percent));
+
+            // show elapsed time in a friendly format
             if (elapsed.TotalSeconds <= 0.5)
                 _resTime.Text = "Thời gian: —";
             else
@@ -768,6 +918,70 @@ namespace TocflQuiz.Controls.Features
                 _scroll.ScrollControlIntoView(_cards[0]);
                 _cards[0].FocusFirstChoice();
             }
+        }
+
+        /// <summary>
+        /// Initializes and starts an essay (written answer) quiz.  This replaces the multiple
+        /// choice interface with a single essay control.  Existing multiple choice cards and
+        /// submission controls are cleared.  The essay control is created if it does not
+        /// already exist and then bound to the current set and configuration.
+        /// </summary>
+        private void StartEssay()
+        {
+            if (_set == null) return;
+
+            // clear existing quiz UI (multiple choice cards and submission controls)
+            _cards.Clear();
+            _stack.Controls.Clear();
+            _submit = null;
+
+            _answered = 0;
+            _correct = 0;
+            _total = 0;
+            UpdateHeader();
+
+            // create the essay control the first time we run an essay quiz.  Cache the control
+            // so we do not recreate it repeatedly.  When constructing it, hook up the
+            // ExitRequested event so that clicking "Thoát" in the essay result overlay
+            // triggers returning to the course list via our own ExitToCourseListRequested event.
+            if (_essay == null)
+            {
+                _essay = new QuizEssayControl();
+
+                // ✅ DÁN Ở ĐÂY (chỉ gắn 1 lần)
+                _essay.ProgressChanged += (cur, total) =>
+                {
+                    // dùng header chung ở trên
+                    _answered = cur;     // (essay: coi như đang ở câu cur)
+                    _total = total;
+                    UpdateHeader();      // -> _lblProgress = $"{_answered} / {_total}"
+                };
+
+                // nếu bạn muốn thoát từ overlay essay quay về course list:
+                //_essay.ExitRequested += OnEssayExitRequested;
+            }
+
+
+            // bind data to the essay control.  Pass the current configuration values
+            // (count and answer mode) and the set title as the day title (optional).
+            _essay.BindSelectedSet(_set, _cfg.AnswerMode, _cfg.Count, _set?.Title);
+
+            _essay.Dock = DockStyle.Fill;
+
+
+            // add the essay control to the stack.  if it is already added from a previous run,
+            // remove it first to avoid multiple instances in the visual tree.
+            _stack.Controls.Clear();
+            _stack.Controls.Add(_essay);
+            _essay.BringToFront();
+            ResizeCardsToFit();
+
+            // scroll to the newly added essay control
+            _scroll.ScrollControlIntoView(_essay);
+        }
+        private void OnEssayExitRequested()
+        {
+            ExitToCourseListRequested?.Invoke();
         }
 
         private void SubmitQuiz()
@@ -1922,6 +2136,51 @@ namespace TocflQuiz.Controls.Features
                     return f;
             }
             return null;
+        }
+
+        // ================= ProgressCircle =================
+        // A simple circular progress control used in the result overlay to display
+        // the percentage of correct answers. It draws a base arc and a colored
+        // progress arc, as well as a percentage label centered inside the circle.
+        private sealed class ProgressCircle : Control
+        {
+            public int Percent { get; set; } = 0;
+            public Color ProgressColor { get; set; } = Color.FromArgb(62, 92, 255);
+            public Color BaseColor { get; set; } = Color.FromArgb(230, 232, 238);
+            public int Thickness { get; set; } = 8;
+
+            public ProgressCircle()
+            {
+                DoubleBuffered = true;
+                Size = new Size(80, 80);
+            }
+           
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                int stroke = Thickness;
+                var rect = new Rectangle(stroke / 2, stroke / 2, Width - stroke, Height - stroke);
+                // background circle
+                using (var basePen = new Pen(BaseColor, stroke))
+                {
+                    g.DrawArc(basePen, rect, -90, 360);
+                }
+                // progress arc
+                float sweep = Math.Max(0, Math.Min(Percent, 100)) * 360f / 100f;
+                using (var progPen = new Pen(ProgressColor, stroke))
+                {
+                    g.DrawArc(progPen, rect, -90, sweep);
+                }
+                // draw percentage text
+                string txt = Percent + "%";
+                using var font = new Font("Segoe UI", 11F, FontStyle.Bold);
+                var size = g.MeasureString(txt, font);
+                using var brush = new SolidBrush(Color.FromArgb(35, 35, 35));
+                g.DrawString(txt, font, brush, new PointF((Width - size.Width) / 2, (Height - size.Height) / 2));
+            }
         }
     }
 }
