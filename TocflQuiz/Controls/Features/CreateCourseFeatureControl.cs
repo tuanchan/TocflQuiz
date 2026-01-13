@@ -166,7 +166,8 @@ namespace TocflQuiz.Controls.Features
 
             var box = new RoundedPanel
             {
-                Size = new Size(760, 240),
+                // ✅ rộng hơn để không bị che chữ
+                Size = new Size(920, 260),
                 FillColor = Color.FromArgb(249, 250, 251),
                 BorderColor = Color.FromArgb(230, 233, 238),
                 Radius = 14,
@@ -189,17 +190,17 @@ namespace TocflQuiz.Controls.Features
                 Font = new Font("Segoe UI", 16F, FontStyle.Bold),
                 ForeColor = TextColor,
                 Location = new Point(78, 26),
-                Size = new Size(640, 34)
+                Height = 34
             };
 
             var lblDesc = new Label
             {
                 AutoSize = false,
                 Text = desc,
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold), // đậm + to
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
                 ForeColor = Muted,
                 Location = new Point(78, 68),
-                Size = new Size(640, 90)
+                Height = 90
             };
 
             box.Controls.Add(lblIcon);
@@ -208,17 +209,40 @@ namespace TocflQuiz.Controls.Features
 
             wrap.Controls.Add(box);
 
-            wrap.Resize += (_, __) =>
+            void LayoutBox()
             {
-                box.Left = (wrap.ClientSize.Width - box.Width) / 2;
-                box.Top = (wrap.ClientSize.Height - box.Height) / 2;
-            };
+                int maxW = Math.Min(980, wrap.ClientSize.Width - 80);
+                int maxH = Math.Min(320, wrap.ClientSize.Height - 80);
 
-            box.Left = (wrap.ClientSize.Width - box.Width) / 2;
-            box.Top = (wrap.ClientSize.Height - box.Height) / 2;
+                box.Width = Math.Max(760, maxW);
+                box.Height = Math.Max(240, maxH);
+
+                box.Left = Math.Max(0, (wrap.ClientSize.Width - box.Width) / 2);
+                box.Top = Math.Max(0, (wrap.ClientSize.Height - box.Height) / 2);
+
+                // ✅ textLeft bám theo icon thật, không hard-code 78 nữa
+                int gap = 18;
+                int textLeft = lblIcon.Right + gap;         // <-- QUAN TRỌNG
+                int textRightPad = 18;
+                int textW = Math.Max(10, box.ClientSize.Width - textLeft - textRightPad);
+
+                lblTitle.Location = new Point(textLeft, lblTitle.Top);
+                lblDesc.Location = new Point(textLeft, lblDesc.Top);
+
+                lblTitle.Width = textW;
+                lblDesc.Width = textW;
+
+                lblTitle.BringToFront();
+                lblDesc.BringToFront();
+            }
+
+
+            wrap.Resize += (_, __) => LayoutBox();
+            LayoutBox();
 
             return wrap;
         }
+
 
         private void ShowImportEmbedded()
         {

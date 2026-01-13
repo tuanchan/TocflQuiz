@@ -21,9 +21,14 @@ namespace TocflQuiz.Forms
         // Top navigation buttons - chỉ giữ 2 nút chính
         private readonly Button btnStudy = new();
         private readonly Button btnCreate = new();
+        private readonly Button btnHome = new();
         private readonly Button btnTheme = new();
+        private readonly Button btnNotify = new();
+        private VocabToastScheduler? _toastScheduler;
+        private VocabToastSettings _toastSettings = new VocabToastSettings();
 
-        private bool _isDarkMode = false;
+
+        private bool _isDarkMode = true;
 
         private readonly Panel _host = new();
         private readonly Panel _sidebar = new();
@@ -46,11 +51,11 @@ namespace TocflQuiz.Forms
         public CardForm() : this(null, null, null, null, null) { }
 
         public CardForm(
-            AppConfig? cfg,
-            List<QuestionGroup>? groups,
-            Dictionary<string, ProgressRecord>? progressMap,
-            ProgressStoreJson? store,
-            SpacedRepetition? sr)
+           AppConfig? cfg,
+           List<QuestionGroup>? groups,
+           Dictionary<string, ProgressRecord>? progressMap,
+           ProgressStoreJson? store,
+           SpacedRepetition? sr)
         {
             _cfg = cfg;
             _groups = groups;
@@ -67,7 +72,28 @@ namespace TocflQuiz.Forms
 
             BuildUi();
             Wire();
+
+            // ✅ init vocab toast scheduler (chạy nền)
+            _toastScheduler = new VocabToastScheduler(() => _selectedSet);
+           
+
+            // ✅ dọn timer khi CardForm đóng
+            FormClosed += (_, __) =>
+            {
+                try { _toastScheduler?.Dispose(); } catch { }
+                _toastScheduler = null;
+            };
+
+            // ✅ default dark mode
+            _isDarkMode = false;  // set về false để ToggleTheme bật dark
+            ToggleTheme();        // bật dark ngay khi mở app
+
             ShowCourseList();
+        }
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            _toastScheduler?.AttachUiContext(); // ✅ lúc này UI context chắc chắn có
         }
 
         private void BuildUi()
@@ -115,7 +141,7 @@ namespace TocflQuiz.Forms
             var btnContainer = new FlowLayoutPanel
             {
                 Dock = DockStyle.Right,
-                Width = 500, // tăng từ 400 để chứa thêm nút
+                Width = 820, // tăng để chứa thêm nút Home
                 FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(0, 15, 0, 15),
                 AutoSize = false,
@@ -123,12 +149,17 @@ namespace TocflQuiz.Forms
             };
 
             StylePrimaryButton(btnStudy, "📝 Kiểm tra", 140);
+            StylePrimaryButton(btnNotify, "🔔 Nhắc từ", 150);
+            StyleSecondaryButton(btnHome, "🏠 Trang chủ", 150);
             StyleSecondaryButton(btnCreate, "✍️ Tạo học phần", 150);
             StyleThemeButton(btnTheme, _isDarkMode ? "🌙 Tối" : "☀️ Sáng", 90);
 
             btnContainer.Controls.Add(btnStudy);
+            btnContainer.Controls.Add(btnNotify);
+            btnContainer.Controls.Add(btnHome);
             btnContainer.Controls.Add(btnCreate);
             btnContainer.Controls.Add(btnTheme);
+
 
             topNav.Controls.Add(lblLogo);
             topNav.Controls.Add(btnContainer);
@@ -176,12 +207,44 @@ namespace TocflQuiz.Forms
         private void Wire()
         {
             btnCreate.Click += (_, __) => ShowCreateCourse();
-            btnStudy.Click += (_, __) => ShowFeature(CardFeatureKeys.Quiz);
+            btnStudy.Click += (_, __) =>
+            {
+                if (_selectedSet == null)
+                {
+                    MessageBox.Show("Bạn chưa chọn học phần.", "Thiếu học phần",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                ShowFeature(CardFeatureKeys.Quiz);
+            };
+            btnHome.Click += (_, __) => ShowCourseList();
             btnTheme.Click += (_, __) => ToggleTheme();
+            btnNotify.Click += (_, __) =>
+            {
+                // mở popup cấu hình và bật
+                using var dlg = new VocabToastSettingsForm(_toastSettings);
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+                _toastSettings = dlg.Result.Clone();
+                _toastScheduler?.ApplySettings(_toastSettings);
+                _toastScheduler?.Restart();
+                // ✅ TEST: hiển thị ngay 1 toast (để biết UI/show OK chưa)
+                _toastScheduler?.ShowOneNow();
+
+
+                // đổi text để biết trạng thái
+                btnNotify.Text = _toastSettings.Enabled ? "🔔 Đang nhắc" : "🔔 Nhắc từ";
+            };
+
+
+            // Setup hover effects cho buttons
+            SetupButtonHoverEffects();
 
             _coursePicker.SelectedSetChanged += set =>
             {
                 _selectedSet = set;
+                _toastScheduler?.NotifySelectedSetChanged();
+
                 RefreshFeatureHeaderIfAny();
                 _quizView?.BindSelectedSet(_selectedSet);
             };
@@ -204,6 +267,57 @@ namespace TocflQuiz.Forms
             };
         }
 
+        private void SetupButtonHoverEffects()
+        {
+            // Home button hover
+            btnHome.MouseEnter += (s, e) =>
+            {
+                if (_isDarkMode)
+                    btnHome.BackColor = Color.FromArgb(60, 60, 70);
+                else
+                    btnHome.BackColor = Color.FromArgb(240, 245, 255);
+            };
+            btnHome.MouseLeave += (s, e) =>
+            {
+                if (_isDarkMode)
+                    btnHome.BackColor = Color.FromArgb(40, 40, 50);
+                else
+                    btnHome.BackColor = Color.White;
+            };
+
+            // Create button hover
+            btnCreate.MouseEnter += (s, e) =>
+            {
+                if (_isDarkMode)
+                    btnCreate.BackColor = Color.FromArgb(60, 60, 70);
+                else
+                    btnCreate.BackColor = Color.FromArgb(240, 245, 255);
+            };
+            btnCreate.MouseLeave += (s, e) =>
+            {
+                if (_isDarkMode)
+                    btnCreate.BackColor = Color.FromArgb(40, 40, 50);
+                else
+                    btnCreate.BackColor = Color.White;
+            };
+
+            // Theme button hover
+            btnTheme.MouseEnter += (s, e) =>
+            {
+                if (_isDarkMode)
+                    btnTheme.BackColor = Color.FromArgb(60, 60, 70);
+                else
+                    btnTheme.BackColor = Color.FromArgb(240, 245, 255);
+            };
+            btnTheme.MouseLeave += (s, e) =>
+            {
+                if (_isDarkMode)
+                    btnTheme.BackColor = Color.FromArgb(40, 40, 50);
+                else
+                    btnTheme.BackColor = Color.White;
+            };
+        }
+
         private void ShowCourseList()
         {
             // Show sidebar with course list
@@ -211,34 +325,57 @@ namespace TocflQuiz.Forms
             _sidebar.Controls.Clear();
             _sidebar.Controls.Add(_coursePicker);
             _coursePicker.BringToFront();
+            _coursePicker.SetDarkMode(_isDarkMode);
+            _quizView?.SetDarkMode(_isDarkMode);
+
 
             // Show welcome screen in main area if no set selected
             if (_selectedSet == null)
             {
                 ShowWelcomeScreen();
             }
+            else
+            {
+                // Nếu đã có set được chọn, clear host để về trạng thái ban đầu
+                _host.Controls.Clear();
+            }
         }
 
         private void ShowWelcomeScreen()
         {
+            // theme colors
+            var pageBg = _isDarkMode ? Color.FromArgb(30, 30, 40) : QuizletBackground;
+            var cardBg = _isDarkMode ? Color.FromArgb(40, 40, 50) : QuizletWhite;
+            var titleClr = _isDarkMode ? Color.FromArgb(220, 220, 230) : QuizletPrimary;
+            var subClr = _isDarkMode ? Color.FromArgb(160, 160, 170) : Color.FromArgb(100, 100, 100);
+
             var welcome = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = QuizletBackground
+                BackColor = pageBg
             };
 
             var container = new Panel
             {
-                Size = new Size(500, 300),
-                BackColor = QuizletWhite,
+                Size = new Size(520, 300),
+                BackColor = cardBg,
                 Location = new Point(0, 0)
+            };
+
+            // nếu bạn muốn bo góc nhẹ cho container (không bắt buộc)
+            container.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var pen = new Pen(_isDarkMode ? Color.FromArgb(60, 60, 70) : QuizletBorder, 1);
+                var r = new Rectangle(0, 0, container.Width - 1, container.Height - 1);
+                e.Graphics.DrawRectangle(pen, r);
             };
 
             var lblTitle = new Label
             {
                 Text = "Chào mừng đến với Flashcards! 🎉",
                 Font = new Font("Segoe UI", 18F, FontStyle.Bold),
-                ForeColor = QuizletPrimary,
+                ForeColor = titleClr,
                 AutoSize = true,
                 Location = new Point(50, 80)
             };
@@ -247,29 +384,33 @@ namespace TocflQuiz.Forms
             {
                 Text = "Chọn một học phần bên trái để bắt đầu học",
                 Font = new Font("Segoe UI", 11F),
-                ForeColor = Color.FromArgb(100, 100, 100),
+                ForeColor = subClr,
                 AutoSize = true,
-                Location = new Point(50, 120)
+                Location = new Point(50, 125)
             };
 
             container.Controls.Add(lblTitle);
             container.Controls.Add(lblSubtitle);
 
-            // Center the container
-            welcome.Resize += (s, e) =>
+            // Center container
+            void Recenter()
             {
                 container.Location = new Point(
-                    (welcome.Width - container.Width) / 2,
-                    (welcome.Height - container.Height) / 2
+                    Math.Max(0, (welcome.Width - container.Width) / 2),
+                    Math.Max(0, (welcome.Height - container.Height) / 2)
                 );
-            };
+            }
+            welcome.Resize += (_, __) => Recenter();
 
             welcome.Controls.Add(container);
 
             _host.Controls.Clear();
             _host.Controls.Add(welcome);
             welcome.BringToFront();
+
+            Recenter();
         }
+
 
         private void ShowCreateCourse()
         {
@@ -281,15 +422,8 @@ namespace TocflQuiz.Forms
 
         private void ShowFeature(string key)
         {
-            if (_selectedSet == null)
-            {
-                MessageBox.Show("Bạn chưa chọn học phần.", "Thiếu học phần",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                ShowCourseList();
-                return;
-            }
-
-            _sidebar.Visible = true;
+            // Luôn ẩn sidebar khi vào bất kỳ feature nào
+            _sidebar.Visible = false;
 
             UserControl view = key switch
             {
@@ -352,8 +486,8 @@ namespace TocflQuiz.Forms
             b.FlatAppearance.BorderColor = QuizletBlue;
             b.Cursor = Cursors.Hand;
 
-            b.MouseEnter += (s, e) => b.BackColor = Color.FromArgb(240, 245, 255);
-            b.MouseLeave += (s, e) => b.BackColor = QuizletWhite;
+            // Hover effects sẽ không hoạt động tốt với dark mode
+            // Bỏ hover effects để tránh conflict
         }
 
         private static void StyleThemeButton(Button b, string text, int width)
@@ -370,27 +504,35 @@ namespace TocflQuiz.Forms
             b.FlatAppearance.BorderColor = QuizletBorder;
             b.Cursor = Cursors.Hand;
 
-            b.MouseEnter += (s, e) =>
-            {
-                b.BackColor = Color.FromArgb(240, 245, 255);
-                b.FlatAppearance.BorderColor = QuizletBlue;
-            };
-            b.MouseLeave += (s, e) =>
-            {
-                b.BackColor = Color.White;
-                b.FlatAppearance.BorderColor = QuizletBorder;
-            };
+            // Không thêm hover effects ở đây vì sẽ được xử lý trong ToggleTheme
         }
 
         private void ToggleTheme()
         {
             _isDarkMode = !_isDarkMode;
+            _host.BackColor = Color.FromArgb(30, 30, 40);
+            _host.BackColor = QuizletBackground;
+
 
             if (_isDarkMode)
             {
                 // Dark mode colors
                 btnTheme.Text = "🌙 Tối";
                 BackColor = Color.FromArgb(30, 30, 40);
+
+                // Update theme button style for dark mode
+                btnTheme.BackColor = Color.FromArgb(40, 40, 50);
+                btnTheme.ForeColor = Color.FromArgb(220, 220, 230);
+                btnTheme.FlatAppearance.BorderColor = Color.FromArgb(60, 60, 70);
+
+                // Update other buttons for dark mode
+                btnHome.BackColor = Color.FromArgb(40, 40, 50);
+                btnHome.ForeColor = QuizletBlue;
+                btnHome.FlatAppearance.BorderColor = QuizletBlue;
+
+                btnCreate.BackColor = Color.FromArgb(40, 40, 50);
+                btnCreate.ForeColor = QuizletBlue;
+                btnCreate.FlatAppearance.BorderColor = QuizletBlue;
 
                 foreach (Control ctrl in Controls)
                 {
@@ -399,12 +541,28 @@ namespace TocflQuiz.Forms
 
                 // Apply dark mode to course picker
                 _coursePicker.SetDarkMode(true);
+                _quizView?.SetDarkMode(true);
+                _essayView?.SetDarkMode(true);
             }
             else
             {
                 // Light mode colors
                 btnTheme.Text = "☀️ Sáng";
                 BackColor = QuizletBackground;
+
+                // Reset theme button style for light mode
+                btnTheme.BackColor = Color.White;
+                btnTheme.ForeColor = QuizletPrimary;
+                btnTheme.FlatAppearance.BorderColor = QuizletBorder;
+
+                // Reset other buttons for light mode
+                btnHome.BackColor = Color.White;
+                btnHome.ForeColor = QuizletBlue;
+                btnHome.FlatAppearance.BorderColor = QuizletBlue;
+
+                btnCreate.BackColor = Color.White;
+                btnCreate.ForeColor = QuizletBlue;
+                btnCreate.FlatAppearance.BorderColor = QuizletBlue;
 
                 foreach (Control ctrl in Controls)
                 {
@@ -413,7 +571,15 @@ namespace TocflQuiz.Forms
 
                 // Apply light mode to course picker
                 _coursePicker.SetDarkMode(false);
+                _quizView?.SetDarkMode(false);
+                _essayView?.SetDarkMode(false);
             }
+            // ✅ nếu đang ở màn welcome thì vẽ lại đúng theme
+            if (_sidebar.Visible && _selectedSet == null)
+            {
+                ShowWelcomeScreen();
+            }
+
         }
 
         private void ApplyDarkTheme(Control ctrl)
@@ -485,11 +651,15 @@ namespace TocflQuiz.Forms
                 _quizView = new QuizFeatureControl();
                 _quizView.ExitToCourseListRequested += () => ShowCourseList();
                 _quizView.EssayModeRequested += (set, cfg) => ShowEssayQuiz(set, cfg);
+
+                // ✅ FIX: nếu đã bật dark trước đó thì view mới tạo phải ăn theme ngay
+                _quizView.SetDarkMode(_isDarkMode);
             }
 
             _quizView.BindSelectedSet(_selectedSet);
             return _quizView;
         }
+
 
         private void ShowEssayQuiz(CardSet set, QuizConfig cfg)
         {
@@ -498,7 +668,7 @@ namespace TocflQuiz.Forms
                 _essayView = new QuizEssayControl();
                 _essayView.ExitRequested += () => ShowCourseList();
             }
-
+            _essayView.SetDarkMode(_isDarkMode);
             _essayView.BindSelectedSet(set, cfg.AnswerMode, cfg.Count, set.Title);
 
             _host.Controls.Clear();

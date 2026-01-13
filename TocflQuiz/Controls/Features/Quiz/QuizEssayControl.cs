@@ -18,6 +18,47 @@ namespace TocflQuiz.Controls.Features.Quiz
         public event Action? ExitRequested;
         public event Action<int, int>? ProgressChanged;
 
+        // ========= Theme =========
+        private bool _isDarkMode;
+
+        // Light palette (giữ y như bạn đang dùng)
+        private static readonly Color LightPage = Color.FromArgb(245, 247, 250);
+        private static readonly Color LightCard = Color.White;
+        private static readonly Color LightTextPrimary = Color.FromArgb(30, 30, 30);
+        private static readonly Color LightTextMuted = Color.FromArgb(120, 120, 120);
+        private static readonly Color LightTextMid = Color.FromArgb(60, 60, 60);
+
+        private static readonly Color LightChipBg = Color.FromArgb(245, 246, 250);
+        private static readonly Color LightChipHover = Color.FromArgb(235, 238, 245);
+        private static readonly Color LightChipBorder = Color.FromArgb(230, 232, 238);
+
+        private static readonly Color LightInputBg = Color.FromArgb(248, 250, 252);
+        private static readonly Color LightPlaceholder = Color.FromArgb(150, 160, 180);
+        private static readonly Color LightInputText = Color.FromArgb(40, 40, 40);
+        private static readonly Color LightInputBorder = Color.FromArgb(200, 215, 235);
+        private static readonly Color LightInputBorderFocus = Color.FromArgb(170, 195, 235);
+
+        // Dark palette (match CardForm)
+        private static readonly Color DarkPage = Color.FromArgb(30, 30, 40);
+        private static readonly Color DarkCard = Color.FromArgb(40, 40, 50);
+        private static readonly Color DarkTextPrimary = Color.FromArgb(220, 220, 230);
+        private static readonly Color DarkTextMuted = Color.FromArgb(160, 160, 170);
+        private static readonly Color DarkTextMid = Color.FromArgb(200, 200, 210);
+
+        private static readonly Color DarkChipBg = Color.FromArgb(55, 55, 66);
+        private static readonly Color DarkChipHover = Color.FromArgb(65, 65, 78);
+        private static readonly Color DarkChipBorder = Color.FromArgb(75, 75, 90);
+
+        private static readonly Color DarkInputBg = Color.FromArgb(55, 55, 66);
+        private static readonly Color DarkPlaceholder = Color.FromArgb(140, 145, 160);
+        private static readonly Color DarkInputText = Color.FromArgb(230, 230, 235);
+        private static readonly Color DarkInputBorder = Color.FromArgb(80, 85, 100);
+        private static readonly Color DarkInputBorderFocus = Color.FromArgb(110, 120, 160);
+
+        private static readonly Color AccentBlue = Color.FromArgb(62, 92, 255);
+        private static readonly Color Green = Color.FromArgb(40, 160, 90);
+        private static readonly Color Red = Color.FromArgb(210, 60, 60);
+
         // ========= State =========
         private CardSet? _set;
         private AnswerMode _mode;
@@ -132,7 +173,7 @@ namespace TocflQuiz.Controls.Features.Quiz
         public QuizEssayControl()
         {
             Dock = DockStyle.Fill;
-            BackColor = Color.FromArgb(245, 247, 250);
+            BackColor = LightPage;
             Padding = new Padding(0);
             DoubleBuffered = true;
 
@@ -148,7 +189,12 @@ namespace TocflQuiz.Controls.Features.Quiz
             _reviewOverlay.Visible = false;
 
             Resize += (_, __) => LayoutNow();
-            Load += (_, __) => LayoutNow();
+            Load += (_, __) =>
+            {
+                LayoutNow();
+                // default theme: nếu CardForm đang bật dark trước khi show control
+                ApplyThemeToAll();
+            };
 
             ShowEmptyState();
         }
@@ -220,7 +266,184 @@ namespace TocflQuiz.Controls.Features.Quiz
             _activeChipLang = null;
 
             RenderQuestion(0);
+
+            // ✅ đảm bảo theme áp lại (vì chips vừa rebuild)
+            ApplyThemeToAll();
         }
+
+        /// <summary>
+        /// CardForm sẽ gọi: _essayView.SetDarkMode(_isDarkMode);
+        /// </summary>
+        public void SetDarkMode(bool isDark)
+        {
+            _isDarkMode = isDark;
+            ApplyThemeToAll();
+        }
+
+        private void ApplyThemeToAll()
+        {
+            ApplyThemeRoot();
+            ApplyThemeHeader();
+            ApplyThemeCard();
+            ApplyThemeOverlays();
+            ApplyThemeChips(); // chips cache
+            ApplyThemeInput(); // placeholder/text/border
+            ApplyThemeButtons();
+            Invalidate(true);
+        }
+
+        private void ApplyThemeRoot()
+        {
+            BackColor = _isDarkMode ? DarkPage : LightPage;
+        }
+
+        private void ApplyThemeHeader()
+        {
+            _lblTopProgress.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+            _lblTopDay.ForeColor = _isDarkMode ? DarkTextMuted : LightTextMuted;
+        }
+
+        private void ApplyThemeCard()
+        {
+            _card.BackColor = _isDarkMode ? DarkCard : LightCard;
+
+            _lblSmall.ForeColor = _isDarkMode ? DarkTextMuted : LightTextMuted;
+            _lblQNum.ForeColor = _isDarkMode ? DarkTextMuted : LightTextMuted;
+
+            _lblPrompt.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(35, 35, 35);
+            _lblAnswerHeader.ForeColor = _isDarkMode ? DarkTextMid : LightTextMid;
+
+            _chips.BackColor = Color.Transparent; // giữ transparent
+        }
+
+        private void ApplyThemeOverlays()
+        {
+            // overlay background
+            _resultOverlay.BackColor = _isDarkMode ? Color.FromArgb(170, 0, 0, 0) : Color.FromArgb(140, 0, 0, 0);
+            _reviewOverlay.BackColor = _resultOverlay.BackColor;
+
+            // dialogs
+            _resultDlg.BackColor = _isDarkMode ? DarkCard : LightCard;
+            _reviewDlg.BackColor = _isDarkMode ? DarkCard : LightCard;
+
+            // close buttons
+            _resClose.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(120, 120, 120);
+            _revClose.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(120, 120, 120);
+
+            // result labels
+            _resSetTitle.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(110, 110, 110);
+            _resTitle.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+            _resTime.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(120, 120, 120);
+
+            // review labels
+            _revSmall.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(120, 120, 120);
+            _revQNum.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(120, 120, 120);
+            _revPrompt.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(35, 35, 35);
+
+            // review boxes
+            _revTryLater.ForeColor = _isDarkMode ? DarkTextMid : Color.FromArgb(90, 90, 90);
+            _revYourHeader.ForeColor = _isDarkMode ? DarkTextMid : Color.FromArgb(90, 90, 90);
+            _revCorrectHeader.ForeColor = Green;
+
+            _revTryLaterBox.BackColor = _isDarkMode ? DarkInputBg : Color.FromArgb(245, 246, 250);
+            _revYourBox.BackColor = _isDarkMode ? DarkInputBg : Color.FromArgb(245, 246, 250);
+
+            // correct box keep green tint but darker in dark mode
+            _revCorrectBox.BackColor = _isDarkMode ? Color.FromArgb(28, 60, 48) : Color.FromArgb(236, 253, 245);
+
+            _revTryLaterText.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(70, 70, 70);
+            _revYourText.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(70, 70, 70);
+            _revCorrectText.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(50, 50, 50);
+
+            // divider green
+            _revCorrectDivider.BackColor = Green;
+
+            // progress circle text
+            _resCircle.TextColor = _isDarkMode ? DarkTextPrimary : Color.Black;
+            _resCircle.TrackColor = _isDarkMode ? DarkChipBorder : Color.FromArgb(235, 238, 245);
+            _resCircle.FillColor = AccentBlue;
+        }
+
+        private void ApplyThemeChips()
+        {
+            // apply theme to cached chips
+            foreach (var kv in _chipCache)
+            {
+                foreach (var chip in kv.Value)
+                {
+                    chip.ThemeIsDark = _isDarkMode;
+                    chip.LightBg = LightChipBg;
+                    chip.LightHoverBg = LightChipHover;
+                    chip.LightBorder = LightChipBorder;
+
+                    chip.DarkBg = DarkChipBg;
+                    chip.DarkHoverBg = DarkChipHover;
+                    chip.DarkBorder = DarkChipBorder;
+
+                    chip.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(50, 50, 50);
+                    chip.Invalidate();
+                }
+            }
+        }
+
+        private void ApplyThemeInput()
+        {
+            _input.ThemeIsDark = _isDarkMode;
+
+            _input.LightBack = LightInputBg;
+            _input.DarkBack = DarkInputBg;
+
+            _input.LightText = LightInputText;
+            _input.DarkText = DarkInputText;
+
+            _input.LightPlaceholder = LightPlaceholder;
+            _input.DarkPlaceholder = DarkPlaceholder;
+
+            _input.LightBorder = LightInputBorder;
+            _input.DarkBorder = DarkInputBorder;
+
+            _input.LightBorderFocus = LightInputBorderFocus;
+            _input.DarkBorderFocus = DarkInputBorderFocus;
+
+            _input.ApplyThemeNow();
+        }
+
+        private void ApplyThemeButtons()
+        {
+            // Skip
+            _btnSkip.BackColor = _isDarkMode ? Color.FromArgb(55, 55, 66) : Color.FromArgb(245, 246, 250);
+            _btnSkip.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(50, 50, 50);
+            _btnSkip.BorderColor = _isDarkMode ? DarkChipBorder : Color.FromArgb(230, 232, 238);
+
+            // Next / Submit
+            _btnNext.BackColor = AccentBlue;
+            _btnNext.ForeColor = Color.White;
+
+            // Result buttons
+            _btnViewResult.BackColor = _isDarkMode ? Color.FromArgb(55, 55, 66) : Color.FromArgb(245, 246, 250);
+            _btnViewResult.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(50, 50, 50);
+            _btnViewResult.BorderColor = _isDarkMode ? DarkChipBorder : Color.FromArgb(230, 232, 238);
+
+            _btnExit.BackColor = AccentBlue;
+            _btnExit.ForeColor = Color.White;
+
+            // Review nav
+            _revPrev.BackColor = _isDarkMode ? Color.FromArgb(55, 55, 66) : Color.FromArgb(245, 246, 250);
+            _revPrev.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(60, 60, 60);
+            _revPrev.BorderColor = _isDarkMode ? DarkChipBorder : Color.FromArgb(230, 232, 238);
+
+            _revNext.BackColor = _isDarkMode ? Color.FromArgb(55, 55, 66) : Color.FromArgb(245, 246, 250);
+            _revNext.ForeColor = _isDarkMode ? DarkTextPrimary : Color.FromArgb(60, 60, 60);
+            _revNext.BorderColor = _isDarkMode ? DarkChipBorder : Color.FromArgb(230, 232, 238);
+
+            // colored labels
+            _resCorrect.ForeColor = Green;
+            _resWrong.ForeColor = Red;
+
+            _revCorrectIcon.ForeColor = Green;
+        }
+
+        // ===================== token pools =====================
         private void RebuildTokenPoolsFromSet(CardSet set)
         {
             _tokensZh.Clear();
@@ -233,7 +456,6 @@ namespace TocflQuiz.Controls.Features.Quiz
             {
                 foreach (var it in set.Items)
                 {
-                    // Chinese chars from Term
                     var term = (it?.Term ?? "").Trim();
                     if (!string.IsNullOrWhiteSpace(term))
                     {
@@ -244,7 +466,6 @@ namespace TocflQuiz.Controls.Features.Quiz
                         }
                     }
 
-                    // Vietnamese words from Definition (bỏ (...) cuối)
                     var def = StripDefinitionForAnswer(it?.Definition, it?.Pinyin);
                     if (!string.IsNullOrWhiteSpace(def))
                     {
@@ -264,21 +485,20 @@ namespace TocflQuiz.Controls.Features.Quiz
             Shuffle(_tokensVi);
         }
 
-
         // ===================== Build UI =====================
         private void BuildTopHeader()
         {
             _lblTopProgress.AutoSize = false;
             _lblTopProgress.Height = 46;
             _lblTopProgress.Font = new Font("Segoe UI", 24F, FontStyle.Bold);
-            _lblTopProgress.ForeColor = Color.FromArgb(30, 30, 30);
+            _lblTopProgress.ForeColor = LightTextPrimary;
             _lblTopProgress.TextAlign = ContentAlignment.MiddleCenter;
             _lblTopProgress.Text = "0 / 0";
 
             _lblTopDay.AutoSize = false;
             _lblTopDay.Height = 28;
             _lblTopDay.Font = new Font("Segoe UI", 13F, FontStyle.Regular);
-            _lblTopDay.ForeColor = Color.FromArgb(120, 120, 120);
+            _lblTopDay.ForeColor = LightTextMuted;
             _lblTopDay.TextAlign = ContentAlignment.MiddleCenter;
             _lblTopDay.Text = "";
 
@@ -286,22 +506,21 @@ namespace TocflQuiz.Controls.Features.Quiz
             Controls.Add(_lblTopProgress);
         }
 
-
         private void BuildMainCard()
         {
             _card.Radius = 20;
-            _card.BackColor = Color.White;
+            _card.BackColor = LightCard;
             _card.Padding = new Padding(28, 22, 28, 22);
             _card.Shadow = true;
 
             _lblSmall.AutoSize = true;
             _lblSmall.Font = new Font("Segoe UI", 11F, FontStyle.Regular);
-            _lblSmall.ForeColor = Color.FromArgb(120, 120, 120);
+            _lblSmall.ForeColor = LightTextMuted;
             _lblSmall.Text = "Định nghĩa";
 
             _lblQNum.AutoSize = true;
             _lblQNum.Font = new Font("Segoe UI", 11F, FontStyle.Regular);
-            _lblQNum.ForeColor = Color.FromArgb(120, 120, 120);
+            _lblQNum.ForeColor = LightTextMuted;
             _lblQNum.Text = "1/1";
 
             _lblPrompt.AutoSize = false;
@@ -311,7 +530,7 @@ namespace TocflQuiz.Controls.Features.Quiz
 
             _lblAnswerHeader.AutoSize = true;
             _lblAnswerHeader.Font = new Font("Segoe UI", 13F, FontStyle.Bold);
-            _lblAnswerHeader.ForeColor = Color.FromArgb(60, 60, 60);
+            _lblAnswerHeader.ForeColor = LightTextMid;
             _lblAnswerHeader.Text = "Đáp án của bạn";
 
             _chips.AutoScroll = true;
@@ -328,8 +547,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             _btnSkip.Height = 56;
             _btnSkip.Radius = 16;
             _btnSkip.BorderThickness = 1;
-            _btnSkip.BorderColor = Color.FromArgb(230, 232, 238);
-            _btnSkip.BackColor = Color.FromArgb(245, 246, 250);
+            _btnSkip.BorderColor = LightChipBorder;
+            _btnSkip.BackColor = LightChipBg;
             _btnSkip.ForeColor = Color.FromArgb(50, 50, 50);
             _btnSkip.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
 
@@ -338,7 +557,7 @@ namespace TocflQuiz.Controls.Features.Quiz
             _btnNext.Height = 56;
             _btnNext.Radius = 16;
             _btnNext.BorderThickness = 0;
-            _btnNext.BackColor = Color.FromArgb(62, 92, 255);
+            _btnNext.BackColor = AccentBlue;
             _btnNext.ForeColor = Color.White;
             _btnNext.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
 
@@ -366,14 +585,13 @@ namespace TocflQuiz.Controls.Features.Quiz
             Controls.Add(_card);
         }
 
-
         private void BuildResultOverlay()
         {
             _resultOverlay.Dock = DockStyle.Fill;
             _resultOverlay.Visible = false;
 
             _resultDlg.Radius = 18;
-            _resultDlg.BackColor = Color.White;
+            _resultDlg.BackColor = LightCard;
             _resultDlg.Shadow = true;
             _resultDlg.Size = new Size(520, 420);
             _resultDlg.Padding = new Padding(18, 16, 18, 14);
@@ -392,7 +610,6 @@ namespace TocflQuiz.Controls.Features.Quiz
                 ExitRequested?.Invoke();
             };
 
-
             _resSetTitle.AutoSize = false;
             _resSetTitle.Height = 22;
             _resSetTitle.TextAlign = ContentAlignment.MiddleCenter;
@@ -409,26 +626,26 @@ namespace TocflQuiz.Controls.Features.Quiz
             _resTitle.Height = 30;
             _resTitle.TextAlign = ContentAlignment.MiddleCenter;
             _resTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            _resTitle.ForeColor = Color.FromArgb(30, 30, 30);
+            _resTitle.ForeColor = LightTextPrimary;
             _resTitle.Text = "Kết quả";
 
             _resCorrect.AutoSize = false;
             _resCorrect.Height = 22;
             _resCorrect.TextAlign = ContentAlignment.MiddleCenter;
             _resCorrect.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            _resCorrect.ForeColor = Color.FromArgb(40, 160, 90);
+            _resCorrect.ForeColor = Green;
 
             _resWrong.AutoSize = false;
             _resWrong.Height = 22;
             _resWrong.TextAlign = ContentAlignment.MiddleCenter;
             _resWrong.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            _resWrong.ForeColor = Color.FromArgb(210, 60, 60);
+            _resWrong.ForeColor = Red;
 
             _resTime.AutoSize = false;
             _resTime.Height = 20;
             _resTime.TextAlign = ContentAlignment.MiddleCenter;
             _resTime.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
-            _resTime.ForeColor = Color.FromArgb(120, 120, 120);
+            _resTime.ForeColor = LightTextMuted;
 
             _resCircle.Size = new Size(120, 120);
 
@@ -437,8 +654,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             _btnViewResult.Height = 44;
             _btnViewResult.Radius = 14;
             _btnViewResult.BorderThickness = 1;
-            _btnViewResult.BorderColor = Color.FromArgb(230, 232, 238);
-            _btnViewResult.BackColor = Color.FromArgb(245, 246, 250);
+            _btnViewResult.BorderColor = LightChipBorder;
+            _btnViewResult.BackColor = LightChipBg;
             _btnViewResult.ForeColor = Color.FromArgb(50, 50, 50);
             _btnViewResult.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
             _btnViewResult.Click += (_, __) =>
@@ -452,7 +669,7 @@ namespace TocflQuiz.Controls.Features.Quiz
             _btnExit.Height = 44;
             _btnExit.Radius = 14;
             _btnExit.BorderThickness = 0;
-            _btnExit.BackColor = Color.FromArgb(62, 92, 255);
+            _btnExit.BackColor = AccentBlue;
             _btnExit.ForeColor = Color.White;
             _btnExit.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
             _btnExit.Click += (_, __) => ExitRequested?.Invoke();
@@ -484,7 +701,7 @@ namespace TocflQuiz.Controls.Features.Quiz
             _reviewOverlay.Visible = false;
 
             _reviewDlg.Radius = 18;
-            _reviewDlg.BackColor = Color.White;
+            _reviewDlg.BackColor = LightCard;
             _reviewDlg.Shadow = true;
             _reviewDlg.Size = new Size(760, 520);
             _reviewDlg.Padding = new Padding(20, 16, 20, 14);
@@ -499,19 +716,18 @@ namespace TocflQuiz.Controls.Features.Quiz
             _revClose.Click += (_, __) =>
             {
                 _reviewOverlay.Visible = false;
-                _resultOverlay.Visible = false; // phòng trường hợp đang mở chồng
-                ExitRequested?.Invoke();         // ✅ về danh sách học phần
+                _resultOverlay.Visible = false;
+                ExitRequested?.Invoke();
             };
-
 
             _revSmall.AutoSize = true;
             _revSmall.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
-            _revSmall.ForeColor = Color.FromArgb(120, 120, 120);
+            _revSmall.ForeColor = LightTextMuted;
             _revSmall.Text = "Definition";
 
             _revQNum.AutoSize = true;
             _revQNum.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
-            _revQNum.ForeColor = Color.FromArgb(120, 120, 120);
+            _revQNum.ForeColor = LightTextMuted;
             _revQNum.Text = "1 of 1";
 
             _revPrompt.AutoSize = false;
@@ -567,21 +783,20 @@ namespace TocflQuiz.Controls.Features.Quiz
 
             _revCorrectHeader.AutoSize = true;
             _revCorrectHeader.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            _revCorrectHeader.ForeColor = Color.FromArgb(60, 140, 90);
+            _revCorrectHeader.ForeColor = Green;
             _revCorrectHeader.Text = "Correct answer";
 
             _revCorrectBox.Radius = 14;
             _revCorrectBox.BackColor = Color.FromArgb(236, 253, 245);
             _revCorrectBox.Shadow = false;
-      
 
-           
+            _revCorrectDivider.Width = 4; // ✅ nhớ set width để divider hiện rõ
 
             _revCorrectIcon.AutoSize = false;
             _revCorrectIcon.Size = new Size(28, 28);
             _revCorrectIcon.TextAlign = ContentAlignment.MiddleCenter;
             _revCorrectIcon.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            _revCorrectIcon.ForeColor = Color.FromArgb(40, 160, 90);
+            _revCorrectIcon.ForeColor = Green;
             _revCorrectIcon.Text = "✓";
 
             _revCorrectText.AutoSize = false;
@@ -597,8 +812,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             _revPrev.Height = 42;
             _revPrev.Radius = 14;
             _revPrev.BorderThickness = 1;
-            _revPrev.BorderColor = Color.FromArgb(230, 232, 238);
-            _revPrev.BackColor = Color.FromArgb(245, 246, 250);
+            _revPrev.BorderColor = LightChipBorder;
+            _revPrev.BackColor = LightChipBg;
             _revPrev.ForeColor = Color.FromArgb(60, 60, 60);
             _revPrev.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
             _revPrev.Click += (_, __) => ShowReview(_reviewIndex - 1);
@@ -608,8 +823,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             _revNext.Height = 42;
             _revNext.Radius = 14;
             _revNext.BorderThickness = 1;
-            _revNext.BorderColor = Color.FromArgb(230, 232, 238);
-            _revNext.BackColor = Color.FromArgb(245, 246, 250);
+            _revNext.BorderColor = LightChipBorder;
+            _revNext.BackColor = LightChipBg;
             _revNext.ForeColor = Color.FromArgb(60, 60, 60);
             _revNext.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
             _revNext.Click += (_, __) => ShowReview(_reviewIndex + 1);
@@ -646,13 +861,11 @@ namespace TocflQuiz.Controls.Features.Quiz
         {
             if (ClientSize.Width <= 0 || ClientSize.Height <= 0) return;
 
-            // Header
             _lblTopProgress.SetBounds(0, 18, ClientSize.Width, 52);
             _lblTopDay.SetBounds(0, 70, ClientSize.Width, 30);
 
             int top = 118;
 
-            // Card width
             int side = 22;
             int w = ClientSize.Width - side * 2;
             w = Math.Min(1320, w);
@@ -664,17 +877,12 @@ namespace TocflQuiz.Controls.Features.Quiz
             _card.Top = top;
             _card.Width = w;
 
-            // ✅ FIX: Card height = phần còn lại của form (không auto theo content nữa)
             int bottomMargin = 18;
             int h = ClientSize.Height - top - bottomMargin;
-            _card.Height = Math.Max(560, h); // đảm bảo không quá nhỏ
+            _card.Height = Math.Max(560, h);
 
             LayoutCardInner();
         }
-
-
-
-
 
         private void LayoutCardInner()
         {
@@ -684,22 +892,18 @@ namespace TocflQuiz.Controls.Features.Quiz
 
             int innerW = _card.ClientSize.Width - _card.Padding.Left - _card.Padding.Right;
 
-            // top row
             _lblSmall.Location = new Point(padL, padT);
             _lblQNum.Location = new Point(_card.ClientSize.Width - _card.Padding.Right - _lblQNum.Width, padT);
 
             int y = padT + 36;
 
-            // prompt
             int promptH = 190;
             _lblPrompt.SetBounds(padL, y, innerW, promptH);
             y += promptH + 18;
 
-            // answer header
             _lblAnswerHeader.Location = new Point(padL, y);
             y += 36;
 
-            // ✅ bottom row (input + buttons) GHIM Ở ĐÁY CARD
             int rowH = 64;
             int gap = 14;
 
@@ -715,19 +919,12 @@ namespace TocflQuiz.Controls.Features.Quiz
             _btnSkip.Location = new Point(padL + inputW + gap, rowY);
             _btnNext.Location = new Point(padL + inputW + gap + btnSkipW + gap, rowY);
 
-            // ✅ chips chiếm phần còn lại -> nhiều thì scroll trong chips
             int chipsTop = y;
-            int chipsBottom = rowY - 18;               // chừa khoảng cách với hàng input
+            int chipsBottom = rowY - 18;
             int chipsH = Math.Max(160, chipsBottom - chipsTop);
 
             _chips.SetBounds(padL, chipsTop, innerW, chipsH);
-
-            // ❌ bỏ dòng này vì nó làm card auto cao theo content
-            // _card.Height = ...
         }
-
-
-
 
         private void LayoutResultDlg()
         {
@@ -808,7 +1005,7 @@ namespace TocflQuiz.Controls.Features.Quiz
             y += 28;
 
             _revCorrectBox.SetBounds(padL, y, innerW, 56);
-            LayoutIconTextRow(_revCorrectBox, _revCorrectIcon, _revCorrectText, _revCorrectDivider); // ✅ divider
+            LayoutIconTextRow(_revCorrectBox, _revCorrectIcon, _revCorrectText, _revCorrectDivider);
             y += 78;
 
             _revPrev.Location = new Point(padL, _reviewDlg.ClientSize.Height - _reviewDlg.Padding.Bottom - _revPrev.Height);
@@ -887,7 +1084,6 @@ namespace TocflQuiz.Controls.Features.Quiz
                     ? new Font(TcPrimaryFontName, 14F, FontStyle.Regular)
                     : new Font("Segoe UI", 12F, FontStyle.Regular);
 
-                // ✅ quan trọng: clear input cho câu mới (không nhét placeholder khi đang focus)
                 _input.SetText("");
 
                 BuildChips(answerIsChinese);
@@ -897,12 +1093,14 @@ namespace TocflQuiz.Controls.Features.Quiz
                 LayoutNow();
                 ProgressChanged?.Invoke(index + 1, _questions.Count);
 
-                // ✅ đảm bảo qua câu mới là focus textbox (Enter hay click đều vậy)
                 BeginInvoke(new Action(() =>
                 {
                     _input.FocusInput();
                     _input.InnerTextBox.SelectionStart = _input.InnerTextBox.TextLength;
                 }));
+
+                // ✅ apply theme after chips build
+                ApplyThemeToAll();
             }
             finally
             {
@@ -910,8 +1108,6 @@ namespace TocflQuiz.Controls.Features.Quiz
                 ResumeLayout(true);
             }
         }
-
-
 
         private void BuildChips(bool answerIsChinese)
         {
@@ -942,8 +1138,8 @@ namespace TocflQuiz.Controls.Features.Quiz
                         Text = t,
                         AnswerIsChinese = answerIsChinese,
                         Font = answerIsChinese
-                            ? new Font(TcPrimaryFontName, 16F, FontStyle.Regular)   // ✅ to + nét
-                            : new Font("Segoe UI", 13F, FontStyle.Regular),        // ✅ to + nét
+                            ? new Font(TcPrimaryFontName, 16F, FontStyle.Regular)
+                            : new Font("Segoe UI", 13F, FontStyle.Regular),
                         Enabled = true
                     };
 
@@ -983,9 +1179,6 @@ namespace TocflQuiz.Controls.Features.Quiz
 
             _activeChipLang = answerIsChinese;
         }
-
-
-
 
         private void SkipCurrent()
         {
@@ -1050,6 +1243,8 @@ namespace TocflQuiz.Controls.Features.Quiz
 
             _resultOverlay.Visible = true;
             _resultOverlay.BringToFront();
+
+            ApplyThemeToAll();
         }
 
         // ===================== Review =====================
@@ -1087,7 +1282,7 @@ namespace TocflQuiz.Controls.Features.Quiz
 
             if (wrongOrSkip)
             {
-                _revTryLaterIcon.ForeColor = Color.FromArgb(160, 160, 160);
+                _revTryLaterIcon.ForeColor = _isDarkMode ? DarkTextMuted : Color.FromArgb(150, 150, 150);
                 _revTryLaterIcon.Text = "✕";
                 _revTryLaterText.Font = q.UseChineseFontForChoices
                     ? new Font(TcPrimaryFontName, 14F, FontStyle.Regular)
@@ -1099,7 +1294,7 @@ namespace TocflQuiz.Controls.Features.Quiz
             {
                 bool isCorrect = st.IsCorrect;
 
-                _revYourIcon.ForeColor = isCorrect ? Color.FromArgb(40, 160, 90) : Color.FromArgb(210, 60, 60);
+                _revYourIcon.ForeColor = isCorrect ? Green : Red;
                 _revYourIcon.Text = isCorrect ? "✓" : "✕";
 
                 _revYourText.Font = q.UseChineseFontForChoices
@@ -1115,6 +1310,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             _reviewOverlay.Visible = true;
             _reviewOverlay.BringToFront();
             LayoutReviewDlg();
+
+            ApplyThemeToAll();
         }
 
         // ===================== Helpers =====================
@@ -1136,6 +1333,7 @@ namespace TocflQuiz.Controls.Features.Quiz
             _btnNext.Visible = false;
 
             LayoutNow();
+            ApplyThemeToAll();
         }
 
         private static string StripDefinitionForAnswer(string? definition, string? pinyin)
@@ -1383,6 +1581,17 @@ namespace TocflQuiz.Controls.Features.Quiz
     internal sealed class ChipButton : Button
     {
         public bool AnswerIsChinese { get; set; }
+
+        // theme binding
+        public bool ThemeIsDark { get; set; }
+        public Color LightBg { get; set; } = Color.FromArgb(245, 246, 250);
+        public Color LightHoverBg { get; set; } = Color.FromArgb(235, 238, 245);
+        public Color LightBorder { get; set; } = Color.FromArgb(230, 232, 238);
+
+        public Color DarkBg { get; set; } = Color.FromArgb(55, 55, 66);
+        public Color DarkHoverBg { get; set; } = Color.FromArgb(65, 65, 78);
+        public Color DarkBorder { get; set; } = Color.FromArgb(75, 75, 90);
+
         private bool _hover;
 
         public ChipButton()
@@ -1390,13 +1599,13 @@ namespace TocflQuiz.Controls.Features.Quiz
             AutoSize = true;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
-            Padding = new Padding(18, 12, 18, 12);   // ✅ chip to hơn
-            Margin = new Padding(8, 8, 8, 8);       // ✅ thoáng hơn
+            Padding = new Padding(18, 12, 18, 12);
+            Margin = new Padding(8, 8, 8, 8);
 
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
 
-            BackColor = Color.FromArgb(245, 246, 250);
+            BackColor = LightBg;
             ForeColor = Color.FromArgb(50, 50, 50);
 
             Cursor = Cursors.Hand;
@@ -1412,16 +1621,20 @@ namespace TocflQuiz.Controls.Features.Quiz
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            var bg = _hover ? Color.FromArgb(235, 238, 245) : BackColor;
+            var bg = ThemeIsDark
+                ? (_hover ? DarkHoverBg : DarkBg)
+                : (_hover ? LightHoverBg : LightBg);
+
+            var border = ThemeIsDark ? DarkBorder : LightBorder;
+
             var rect = ClientRectangle;
             rect.Width -= 1;
             rect.Height -= 1;
 
             using var path = RoundedRect(rect, 16);
             using (var b = new SolidBrush(bg)) e.Graphics.FillPath(b, path);
-            using (var pen = new Pen(Color.FromArgb(230, 232, 238), 1)) e.Graphics.DrawPath(pen, path);
+            using (var pen = new Pen(border, 1)) e.Graphics.DrawPath(pen, path);
 
-            // ✅ chữ nét hơn: flags NoPadding + NoPrefix
             TextRenderer.DrawText(
                 e.Graphics,
                 Text,
@@ -1461,10 +1674,26 @@ namespace TocflQuiz.Controls.Features.Quiz
         }
     }
 
-
     internal sealed class RoundedInput : UserControl
     {
         public TextBox InnerTextBox { get; } = new TextBox();
+
+        // theme binding
+        public bool ThemeIsDark { get; set; }
+        public Color LightBack { get; set; } = Color.FromArgb(248, 250, 252);
+        public Color DarkBack { get; set; } = Color.FromArgb(55, 55, 66);
+
+        public Color LightText { get; set; } = Color.FromArgb(40, 40, 40);
+        public Color DarkText { get; set; } = Color.FromArgb(230, 230, 235);
+
+        public Color LightPlaceholder { get; set; } = Color.FromArgb(150, 160, 180);
+        public Color DarkPlaceholder { get; set; } = Color.FromArgb(140, 145, 160);
+
+        public Color LightBorder { get; set; } = Color.FromArgb(200, 215, 235);
+        public Color DarkBorder { get; set; } = Color.FromArgb(80, 85, 100);
+
+        public Color LightBorderFocus { get; set; } = Color.FromArgb(170, 195, 235);
+        public Color DarkBorderFocus { get; set; } = Color.FromArgb(110, 120, 160);
 
         public string Placeholder
         {
@@ -1484,15 +1713,13 @@ namespace TocflQuiz.Controls.Features.Quiz
         public RoundedInput()
         {
             DoubleBuffered = true;
-            BackColor = Color.FromArgb(248, 250, 252);
+            BackColor = LightBack;
             Padding = new Padding(14, 10, 14, 10);
 
             InnerTextBox.BorderStyle = BorderStyle.None;
             InnerTextBox.Font = new Font("Segoe UI", 12F, FontStyle.Regular);
-
-
             InnerTextBox.BackColor = BackColor;
-            InnerTextBox.ForeColor = Color.FromArgb(40, 40, 40);
+            InnerTextBox.ForeColor = LightText;
             InnerTextBox.Multiline = false;
 
             Controls.Add(InnerTextBox);
@@ -1503,7 +1730,7 @@ namespace TocflQuiz.Controls.Features.Quiz
                 if (_showingPlaceholder)
                 {
                     InnerTextBox.Text = "";
-                    InnerTextBox.ForeColor = Color.FromArgb(40, 40, 40);
+                    InnerTextBox.ForeColor = ThemeIsDark ? DarkText : LightText;
                     _showingPlaceholder = false;
                 }
                 Invalidate();
@@ -1525,6 +1752,23 @@ namespace TocflQuiz.Controls.Features.Quiz
             };
         }
 
+        public void ApplyThemeNow()
+        {
+            BackColor = ThemeIsDark ? DarkBack : LightBack;
+            InnerTextBox.BackColor = BackColor;
+
+            if (_showingPlaceholder)
+            {
+                InnerTextBox.ForeColor = ThemeIsDark ? DarkPlaceholder : LightPlaceholder;
+            }
+            else
+            {
+                InnerTextBox.ForeColor = ThemeIsDark ? DarkText : LightText;
+            }
+
+            Invalidate();
+        }
+
         public string GetText()
         {
             if (_showingPlaceholder) return "";
@@ -1535,11 +1779,10 @@ namespace TocflQuiz.Controls.Features.Quiz
         {
             if (string.IsNullOrWhiteSpace(text))
             {
-                // ✅ FIX: nếu đang focus thì KHÔNG được set placeholder vào TextBox.Text
                 if (_hasFocus || InnerTextBox.Focused)
                 {
                     _showingPlaceholder = false;
-                    InnerTextBox.ForeColor = Color.FromArgb(40, 40, 40);
+                    InnerTextBox.ForeColor = ThemeIsDark ? DarkText : LightText;
                     InnerTextBox.Text = "";
                     return;
                 }
@@ -1549,29 +1792,30 @@ namespace TocflQuiz.Controls.Features.Quiz
             }
 
             _showingPlaceholder = false;
-            InnerTextBox.ForeColor = Color.FromArgb(40, 40, 40);
+            InnerTextBox.ForeColor = ThemeIsDark ? DarkText : LightText;
             InnerTextBox.Text = text;
         }
-
 
         public void FocusInput() => InnerTextBox.Focus();
 
         private void ApplyPlaceholder()
         {
-            if (_hasFocus || InnerTextBox.Focused) return; // ✅ tránh mọi trường hợp nhét placeholder khi đang focus
+            if (_hasFocus || InnerTextBox.Focused) return;
 
             _showingPlaceholder = true;
             InnerTextBox.Text = _placeholder;
-            InnerTextBox.ForeColor = Color.FromArgb(150, 160, 180);
+            InnerTextBox.ForeColor = ThemeIsDark ? DarkPlaceholder : LightPlaceholder;
         }
-
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            var border = _hasFocus ? Color.FromArgb(170, 195, 235) : Color.FromArgb(200, 215, 235);
+            var border = _hasFocus
+                ? (ThemeIsDark ? DarkBorderFocus : LightBorderFocus)
+                : (ThemeIsDark ? DarkBorder : LightBorder);
+
             using var pen = new Pen(border, 2);
 
             var rect = ClientRectangle;
@@ -1605,6 +1849,11 @@ namespace TocflQuiz.Controls.Features.Quiz
         }
         private int _value;
 
+        // theme binding
+        public Color TrackColor { get; set; } = Color.FromArgb(235, 238, 245);
+        public Color FillColor { get; set; } = Color.FromArgb(62, 92, 255);
+        public Color TextColor { get; set; } = Color.Black;
+
         public ProgressCircle()
         {
             DoubleBuffered = true;
@@ -1618,8 +1867,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             var rect = ClientRectangle;
             rect.Inflate(-8, -8);
 
-            using var bg = new Pen(Color.FromArgb(235, 238, 245), 10);
-            using var fg = new Pen(Color.FromArgb(62, 92, 255), 10)
+            using var bg = new Pen(TrackColor, 10);
+            using var fg = new Pen(FillColor, 10)
             {
                 StartCap = LineCap.Round,
                 EndCap = LineCap.Round
@@ -1631,7 +1880,8 @@ namespace TocflQuiz.Controls.Features.Quiz
             var txt = $"{Value}%";
             using var f = new Font("Segoe UI", 14F, FontStyle.Bold);
             var sz = e.Graphics.MeasureString(txt, f);
-            e.Graphics.DrawString(txt, f, Brushes.Black,
+            using var b = new SolidBrush(TextColor);
+            e.Graphics.DrawString(txt, f, b,
                 (Width - sz.Width) / 2,
                 (Height - sz.Height) / 2);
         }

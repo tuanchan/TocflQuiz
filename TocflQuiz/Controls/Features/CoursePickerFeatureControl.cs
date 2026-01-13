@@ -210,7 +210,7 @@ namespace TocflQuiz.Controls.Features
                 RowCount = 1,
                 Margin = new Padding(0, 8, 0, 0)
             };
-            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300)); // giảm từ 420 xuống 300
+            bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250)); // giảm từ 420 xuống 300
             bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
             _txtSearch.Dock = DockStyle.Fill;

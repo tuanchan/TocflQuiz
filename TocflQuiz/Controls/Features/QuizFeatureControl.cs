@@ -1,17 +1,34 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Linq;
 using System.Windows.Forms;
-using TocflQuiz.Models;
 using TocflQuiz.Controls.Features.Quiz;
+using TocflQuiz.Models;
 
 namespace TocflQuiz.Controls.Features
 {
+
     public sealed partial class QuizFeatureControl : UserControl
     {
+        // ===== Dark mode state =====
+        private bool _isDarkMode = false;
+
+        // ===== Color constants giống CardForm =====
+        private static readonly Color LightBackground = Color.White;
+        private static readonly Color LightPageBackground = Color.FromArgb(245, 245, 245);
+        private static readonly Color LightBorder = Color.FromArgb(235, 235, 235);
+        private static readonly Color LightTextPrimary = Color.FromArgb(30, 30, 30);
+        private static readonly Color LightTextSecondary = Color.FromArgb(90, 90, 90);
+
+        private static readonly Color DarkBackground = Color.FromArgb(40, 40, 50);
+        private static readonly Color DarkPageBackground = Color.FromArgb(30, 30, 40);
+        private static readonly Color DarkBorder = Color.FromArgb(60, 60, 70);
+        private static readonly Color DarkTextPrimary = Color.FromArgb(220, 220, 230);
+        private static readonly Color DarkTextSecondary = Color.FromArgb(160, 160, 170);
         // ===== result overlay =====
         private readonly OverlayPanel _resultOverlay = new();
         private readonly RoundedPanel _resultDlg = new();
@@ -26,6 +43,7 @@ namespace TocflQuiz.Controls.Features
 
         // donut chart to show percentage correct
         private readonly ProgressCircle _resCircle = new();
+        private RoundedPanel? _resSummaryWrap;
 
         private readonly Button _resClose = new();
         private readonly RoundedButton _btnViewResult = new();
@@ -57,6 +75,7 @@ namespace TocflQuiz.Controls.Features
         private readonly Label _dlgIcon = new();
 
         private readonly Label _lblMax = new();
+        private readonly Label _sepSetup = new();
 
         private readonly PillNumberBox _pillCount = new();
         private readonly PillComboBox _pillAnswer = new();
@@ -81,7 +100,7 @@ namespace TocflQuiz.Controls.Features
         private int _answered;
         private int _total;
         private int _correct;
-
+       
         // =====================
         // Mode selection and essay control
         // The quiz can operate in two modes: MultiChoice (default) or Essay.
@@ -140,7 +159,207 @@ namespace TocflQuiz.Controls.Features
             ShowEmptyState();
             ShowSetup();
         }
+        // ===== PUBLIC METHOD để CardForm gọi =====
+        public void SetDarkMode(bool isDark)
+        {
+            _isDarkMode = isDark;
+            ApplyTheme();
+        }
 
+        // ===== APPLY THEME =====
+        private void ApplyTheme()
+        {
+            // 1. Main background
+            BackColor = _isDarkMode ? DarkPageBackground : LightBackground;
+            _scroll.BackColor = _isDarkMode ? DarkPageBackground : LightPageBackground;
+            _stack.BackColor = _scroll.BackColor;
+
+            // 2. Header labels
+            _lblProgress.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+            _lblSetTitle.ForeColor = _isDarkMode ? DarkTextSecondary : LightTextSecondary;
+
+            // 3. Setup dialog (_dlg)
+            _dlg.BackColor = _isDarkMode ? DarkBackground : LightBackground;
+            _dlg.BorderColor = _isDarkMode ? DarkBorder : LightBorder;
+
+            _btnClose.BackColor = _isDarkMode ? DarkBackground : LightBackground;
+            _btnClose.ForeColor = _isDarkMode ? DarkTextSecondary : LightTextSecondary;
+            _btnClose.FlatAppearance.MouseOverBackColor = _isDarkMode ? Color.FromArgb(60, 60, 70) : Color.FromArgb(245, 246, 250);
+            _btnClose.FlatAppearance.MouseDownBackColor = _isDarkMode ? Color.FromArgb(70, 70, 80) : Color.FromArgb(238, 240, 246);
+
+            _dlgSetTitle.ForeColor = _isDarkMode ? DarkTextSecondary : Color.FromArgb(60, 60, 60);
+            _dlgTitle.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+            _lblMax.ForeColor = _isDarkMode ? DarkTextSecondary : Color.FromArgb(60, 60, 60);
+
+            // separator + icon
+            _sepSetup.BackColor = _isDarkMode ? DarkBorder : LightBorder;
+            _dlgIcon.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+
+            // 4. Result dialog (_resultDlg)
+            _resultDlg.BackColor = _isDarkMode ? DarkBackground : LightBackground;
+            _resultDlg.BorderColor = _isDarkMode ? DarkBorder : LightBorder;
+
+            // ===== Result summary wrap (khối Đúng/Sai + donut) =====
+            if (_resSummaryWrap != null)
+            {
+                // ✅ đồng bộ màu summary wrap
+                _resSummaryWrap.BackColor = _isDarkMode ? Color.FromArgb(33, 33, 43) : Color.FromArgb(245, 246, 250);
+                _resSummaryWrap.BorderColor = _isDarkMode ? DarkBorder : Color.FromArgb(230, 232, 238);
+                _resSummaryWrap.Invalidate();
+            }
+
+            // Donut colors + text
+            _resCircle.BaseColor = _isDarkMode ? Color.FromArgb(70, 70, 85) : Color.FromArgb(230, 232, 238);
+            _resCircle.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+            _resCircle.ProgressColor = Color.FromArgb(62, 92, 255);
+
+            _resClose.BackColor = _isDarkMode ? DarkBackground : LightBackground;
+            _resClose.ForeColor = _isDarkMode ? DarkTextSecondary : LightTextSecondary;
+            _resClose.FlatAppearance.MouseOverBackColor = _isDarkMode ? Color.FromArgb(60, 60, 70) : Color.FromArgb(245, 246, 250);
+            _resClose.FlatAppearance.MouseDownBackColor = _isDarkMode ? Color.FromArgb(70, 70, 80) : Color.FromArgb(238, 240, 246);
+
+            _resTitle.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+
+            // (Đúng/Sai màu xanh/đỏ đã set trong ShowResultOverlay, không đụng ở đây)
+            // nhưng các label khác vẫn theo theme
+            _resTime.ForeColor = _isDarkMode ? DarkTextSecondary : Color.FromArgb(110, 110, 110);
+
+            // ✅ recolor all controls inside result dialog (fix white blocks + summary đồng bộ)
+            ApplyThemeToResultDialog(_resultDlg);
+
+            // ✅ Fix nút "Thoát" (ghost) trong popup kết quả
+            if (_isDarkMode)
+            {
+                _btnExit.BackColor = Color.FromArgb(45, 45, 58);
+                _btnExit.BorderColor = Color.FromArgb(90, 90, 110);
+                _btnExit.ForeColor = Color.FromArgb(230, 230, 240);
+            }
+            else
+            {
+                _btnExit.BackColor = Color.FromArgb(245, 246, 250);
+                _btnExit.BorderColor = Color.FromArgb(230, 232, 238);
+                _btnExit.ForeColor = Color.FromArgb(50, 50, 50);
+            }
+            _btnExit.Invalidate();
+
+            _dlg.Invalidate();
+
+            // 5. Apply to all panels recursively
+            ApplyThemeToControl(this);
+
+            // 6. Update cards
+            foreach (var card in _cards)
+                card.SetDarkMode(_isDarkMode);
+
+            // 7. Update submit section
+            _submit?.SetDarkMode(_isDarkMode);
+
+            // 8. Update pill controls
+            _pillCount.SetDarkMode(_isDarkMode);
+            _pillAnswer.SetDarkMode(_isDarkMode);
+
+            Refresh();
+        }
+
+        private void ApplyThemeToResultDialog(Control root)
+        {
+            var dlgBg = _isDarkMode ? DarkBackground : LightBackground;
+
+            // ✅ đồng bộ màu summary theo đúng _resSummaryWrap
+            var summaryBg = _isDarkMode ? Color.FromArgb(33, 33, 43) : Color.FromArgb(245, 246, 250);
+            var summaryBorder = _isDarkMode ? DarkBorder : Color.FromArgb(230, 232, 238);
+
+            void Walk(Control c)
+            {
+                // ép các mảng trắng về nền dialog
+                if (c.BackColor == Color.White || c.BackColor == LightBackground)
+                    c.BackColor = dlgBg;
+
+                // ✅ ép tất cả panel/table con bên trong summaryWrap theo đúng màu summary
+                if (_resSummaryWrap != null && IsInside(c, _resSummaryWrap))
+                    c.BackColor = summaryBg;
+
+                if (c is RoundedPanel rp)
+                {
+                    // nếu chính là summaryWrap thì set border đúng
+                    if (ReferenceEquals(rp, _resSummaryWrap))
+                    {
+                        rp.BackColor = summaryBg;
+                        rp.BorderColor = summaryBorder;
+                    }
+                    rp.Invalidate();
+                }
+
+                foreach (Control ch in c.Controls) Walk(ch);
+            }
+
+            Walk(root);
+
+            static bool IsInside(Control child, Control parent)
+            {
+                Control? p = child;
+                while (p != null)
+                {
+                    if (ReferenceEquals(p, parent)) return true;
+                    p = p.Parent;
+                }
+                return false;
+            }
+        }
+
+
+        private void ApplyThemeToControl(Control ctrl)
+        {
+            if (ctrl is TableLayoutPanel tbl)
+            {
+                if (tbl.BackColor == LightBackground || tbl.BackColor == DarkBackground)
+                {
+                    tbl.BackColor = _isDarkMode ? DarkBackground : LightBackground;
+                }
+
+                foreach (Control child in tbl.Controls)
+                {
+                    ApplyThemeToControl(child);
+                }
+            }
+            else if (ctrl is Panel panel)
+            {
+                if (panel.BackColor == LightBackground || panel.BackColor == DarkBackground)
+                {
+                    panel.BackColor = _isDarkMode ? DarkBackground : LightBackground;
+                }
+                else if (panel.BackColor == LightPageBackground || panel.BackColor == DarkPageBackground)
+                {
+                    panel.BackColor = _isDarkMode ? DarkPageBackground : LightPageBackground;
+                }
+
+                foreach (Control child in panel.Controls)
+                {
+                    ApplyThemeToControl(child);
+                }
+            }
+            else if (ctrl is Label lbl)
+            {
+                if (lbl.ForeColor == LightTextPrimary || lbl.ForeColor == DarkTextPrimary ||
+                    lbl.ForeColor == Color.FromArgb(35, 35, 35))
+                {
+                    lbl.ForeColor = _isDarkMode ? DarkTextPrimary : LightTextPrimary;
+                }
+                else if (lbl.ForeColor == LightTextSecondary || lbl.ForeColor == DarkTextSecondary ||
+                         lbl.ForeColor == Color.FromArgb(60, 60, 60) ||
+                         lbl.ForeColor == Color.FromArgb(110, 110, 110))
+                {
+                    lbl.ForeColor = _isDarkMode ? DarkTextSecondary : LightTextSecondary;
+                }
+            }
+            else
+            {
+                foreach (Control child in ctrl.Controls)
+                {
+                    ApplyThemeToControl(child);
+                }
+            }
+        }
         // ================= UI =================
         private void BuildUi()
         {
@@ -403,8 +622,10 @@ namespace TocflQuiz.Controls.Features
             inputs.Controls.Add(rowAnswerRight, 1, 1);
 
 
-            var sep = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Color.FromArgb(235, 235, 235) };
-
+            _sepSetup.Dock = DockStyle.Top;
+            _sepSetup.Height = 1;
+            _sepSetup.BackColor = Color.FromArgb(235, 235, 235);
+            _sepSetup.AutoSize = false;
             // toggles panel: first row for quiz type selection, second row for multiple choice toggle
             var toggles = new TableLayoutPanel
             {
@@ -434,7 +655,7 @@ namespace TocflQuiz.Controls.Features
 
             var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
             body.Controls.Add(toggles);
-            body.Controls.Add(sep);
+            body.Controls.Add(_sepSetup);
 
             var bottom = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
             bottom.Controls.Add(_btnStart);
@@ -570,7 +791,7 @@ namespace TocflQuiz.Controls.Features
             header.Controls.Add(leftHeader);
 
             // Summary block
-            var summaryWrap = new RoundedPanel
+            _resSummaryWrap = new RoundedPanel
             {
                 Dock = DockStyle.Fill,
                 Radius = 16,
@@ -581,13 +802,14 @@ namespace TocflQuiz.Controls.Features
                 Padding = new Padding(22)
             };
 
+
             // new summary layout: left column shows correct and wrong counts stacked, right column shows a donut chart of the correct percentage
             var summary = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 2,
-                BackColor = summaryWrap.BackColor
+                BackColor = _resSummaryWrap.BackColor
             };
             summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
             summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
@@ -596,7 +818,7 @@ namespace TocflQuiz.Controls.Features
             summary.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
 
             // left block hosts the correct and wrong count labels
-            var leftBlock = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
+            var leftBlock = new Panel { Dock = DockStyle.Fill, BackColor = _resSummaryWrap.BackColor };
             leftBlock.Controls.Add(_resScore);
             leftBlock.Controls.Add(_resPercent);
             leftBlock.Layout += (_, __) =>
@@ -607,7 +829,7 @@ namespace TocflQuiz.Controls.Features
             };
 
             // right block hosts the donut chart showing percentage correct
-            var donutBlock = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
+            var donutBlock = new Panel { Dock = DockStyle.Fill, BackColor = _resSummaryWrap.BackColor };
             donutBlock.Controls.Add(_resCircle);
             donutBlock.Layout += (_, __) =>
             {
@@ -617,7 +839,7 @@ namespace TocflQuiz.Controls.Features
                 );
             };
 
-            var timeHost = new Panel { Dock = DockStyle.Fill, BackColor = summaryWrap.BackColor };
+            var timeHost = new Panel { Dock = DockStyle.Fill, BackColor = _resSummaryWrap.BackColor };
             timeHost.Controls.Add(_resTime);
             timeHost.Layout += (_, __) => _resTime.Location = new Point(0, 8);
 
@@ -626,7 +848,7 @@ namespace TocflQuiz.Controls.Features
             summary.Controls.Add(timeHost, 0, 1);
             summary.SetColumnSpan(timeHost, 2);
 
-            summaryWrap.Controls.Add(summary);
+            _resSummaryWrap.Controls.Add(summary);
 
             // Buttons
             var btnRow = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
@@ -644,7 +866,7 @@ namespace TocflQuiz.Controls.Features
             };
 
             root.Controls.Add(header, 0, 0);
-            root.Controls.Add(summaryWrap, 0, 1);
+            root.Controls.Add(_resSummaryWrap, 0, 1);
             root.Controls.Add(btnRow, 0, 2);
 
             _resultDlg.Controls.Clear();
@@ -792,6 +1014,9 @@ namespace TocflQuiz.Controls.Features
         private void ShowResultOverlay(int correct, int total, TimeSpan elapsed)
         {
             _resSetTitle.Text = _set?.Title ?? "(chưa chọn)";
+            // Đúng xanh / Sai đỏ
+            _resScore.ForeColor = _isDarkMode ? Color.FromArgb(120, 230, 180) : Color.FromArgb(16, 185, 129); // green
+            _resPercent.ForeColor = _isDarkMode ? Color.FromArgb(255, 140, 140) : Color.FromArgb(239, 68, 68); // red
 
             // display correct and wrong counts instead of a single fraction
             int wrong = Math.Max(0, total - correct);
@@ -882,6 +1107,8 @@ namespace TocflQuiz.Controls.Features
                 var q = questions[i];
 
                 var card = new QuizQuestionCard(q, _scroll.BackColor);
+                card.SetDarkMode(_isDarkMode); // ✅ thêm dòng này
+
                 card.SelectionChanged += (_, __) =>
                 {
                     if (_submitted) return;
@@ -900,6 +1127,8 @@ namespace TocflQuiz.Controls.Features
             }
 
             _submit = new SubmitSectionControl();
+            _submit.SetDarkMode(_isDarkMode); // ✅ thêm dòng này
+
             _submit.Visible = false;
 
             _submit.SetMode(SubmitSectionControl.Mode.Submit);
@@ -1057,17 +1286,23 @@ namespace TocflQuiz.Controls.Features
 
         private void ApplyReviewToAllCards()
         {
-            var greenBg = Color.FromArgb(236, 253, 245);
-            var greenBorder = Color.FromArgb(16, 185, 129);
+            // theme-aware colors
+            Color neutralBg = _isDarkMode ? Color.FromArgb(40, 40, 50) : Color.White;
+            Color neutralBorder = _isDarkMode ? Color.FromArgb(60, 60, 70) : Color.FromArgb(230, 230, 230);
 
-            var redBg = Color.FromArgb(254, 242, 242);
-            var redBorder = Color.FromArgb(239, 68, 68);
+            Color greenBg = _isDarkMode ? Color.FromArgb(30, 60, 50) : Color.FromArgb(236, 253, 245);
+            Color greenBorder = Color.FromArgb(16, 185, 129);
+
+            Color redBg = _isDarkMode ? Color.FromArgb(70, 40, 45) : Color.FromArgb(254, 242, 242);
+            Color redBorder = Color.FromArgb(239, 68, 68);
 
             foreach (var c in _cards)
-                c.ApplyReview(greenBg, greenBorder, redBg, redBorder);
+                c.ApplyReview(neutralBg, neutralBorder, greenBg, greenBorder, redBg, redBorder);
 
             _stack.PerformLayout();
         }
+
+
 
         private void ScrollToFirstWrongIfAny()
         {
@@ -1115,7 +1350,7 @@ namespace TocflQuiz.Controls.Features
         {
             private readonly QuizQuestion _q;
             private readonly Color _pageBg;
-
+            private bool _isDarkMode = false; // ✅ THÊM field này
             public int QuestionIndex => _q.Index;
 
             public string? SelectedChoice { get; private set; }
@@ -1139,11 +1374,12 @@ namespace TocflQuiz.Controls.Features
                 _q = q;
                 _pageBg = pageBg;
 
-                BackColor = _pageBg;
+                // ✅ Không set BackColor ở đây, sẽ set sau khi Build
                 AutoSize = true;
                 AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
                 Build();
+                BackColor = _pageBg; // ✅ Set sau khi _card được tạo
             }
 
             public void SetCardWidth(int w)
@@ -1176,7 +1412,12 @@ namespace TocflQuiz.Controls.Features
                 _card.AutoSize = true;
                 _card.AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
-                var topRow = new Panel { Dock = DockStyle.Top, Height = 34, BackColor = Color.White };
+                var topRow = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 34,
+                    BackColor = Color.Transparent  // ✅ Đổi thành Transparent
+                };
 
                 _lblSmall.Text = _q.SmallLabel;
                 _lblSmall.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
@@ -1211,14 +1452,13 @@ namespace TocflQuiz.Controls.Features
                 _lblHint.Height = 34;
                 _lblHint.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold);
                 _lblHint.ForeColor = Color.FromArgb(110, 110, 110);
-
                 var grid = new TableLayoutPanel
                 {
                     Dock = DockStyle.Top,
                     ColumnCount = 2,
                     RowCount = 2,
                     Height = 176,
-                    BackColor = Color.White,
+                    BackColor = Color.Transparent,  // ✅ Đổi thành Transparent
                     Padding = new Padding(0),
                     Margin = new Padding(0)
                 };
@@ -1307,11 +1547,24 @@ namespace TocflQuiz.Controls.Features
             public void Lock()
             {
                 Locked = true;
-                foreach (var b in _btn) b.Enabled = false;
+
+                // ✅ đừng disable => tránh chữ bị mờ xám
+                foreach (var b in _btn)
+                {
+                    b.Enabled = true;
+                    b.Cursor = Cursors.Default;
+                    b.TabStop = false;
+                }
+
                 _lnkDontKnow.Enabled = false;
             }
 
-            public void ApplyReview(Color greenBg, Color greenBorder, Color redBg, Color redBorder)
+
+            public void ApplyReview(
+      Color neutralBg, Color neutralBorder,
+      Color greenBg, Color greenBorder,
+      Color redBg, Color redBorder)
+
             {
                 var correct = (_q.CorrectAnswer ?? "").Trim();
                 var picked = (SelectedChoice ?? "").Trim();
@@ -1334,19 +1587,73 @@ namespace TocflQuiz.Controls.Features
                     }
                     else
                     {
-                        b.BackColor = Color.White;
-                        b.BorderColor = Color.FromArgb(230, 230, 230);
+                        b.BackColor = neutralBg;
+                        b.BorderColor = neutralBorder;
                     }
+
                     b.Invalidate();
                 }
+            }
+            public void SetDarkMode(bool isDark)
+            {
+                _isDarkMode = isDark;
+
+                var bgColor = isDark ? Color.FromArgb(40, 40, 50) : Color.White;
+                var borderColor = isDark ? Color.FromArgb(60, 60, 70) : Color.FromArgb(235, 235, 235);
+                var textPrimary = isDark ? Color.FromArgb(220, 220, 230) : Color.FromArgb(30, 30, 30);
+                var textSecondary = isDark ? Color.FromArgb(160, 160, 170) : Color.FromArgb(90, 90, 90);
+
+                // ✅ NỀN NGOÀI (UserControl) phải theo nền page/scroll
+                BackColor = Parent?.BackColor ?? _pageBg;
+
+                // ✅ NỀN THẺ (RoundedPanel) mới theo bg card
+                _card.BackColor = bgColor;
+                _card.BorderColor = borderColor;
+
+                _lblQuestion.ForeColor = textPrimary;
+                _lblSmall.ForeColor = textSecondary;
+                _lblIndex.ForeColor = textSecondary;
+                _lblHint.ForeColor = textSecondary;
+
+                var currentSelected = SelectedChoice;
+                foreach (var btn in _btn)
+                {
+                    bool isSelected = currentSelected != null &&
+                                      string.Equals((btn.Text ?? "").Trim(), currentSelected.Trim(), StringComparison.Ordinal);
+
+                    if (isSelected)
+                    {
+                        if (isDark)
+                        {
+                            btn.BackColor = Color.FromArgb(50, 60, 80);
+                            btn.BorderColor = Color.FromArgb(76, 146, 245);
+                        }
+                        else
+                        {
+                            btn.BackColor = Color.FromArgb(242, 247, 255);
+                            btn.BorderColor = Color.FromArgb(140, 170, 255);
+                        }
+                    }
+                    else
+                    {
+                        btn.BackColor = bgColor;
+                        btn.BorderColor = borderColor;
+                    }
+
+                    btn.ForeColor = textPrimary;
+                    btn.Invalidate();
+                }
+
+                _card.Invalidate();
+                Invalidate();
             }
 
             private void ClearSelectedStyle()
             {
                 foreach (var b in _btn)
                 {
-                    b.BackColor = Color.White;
-                    b.BorderColor = Color.FromArgb(230, 230, 230);
+                    b.BackColor = _card.BackColor;
+                    b.BorderColor = _card.BorderColor;
                     b.Invalidate();
                 }
             }
@@ -1356,8 +1663,26 @@ namespace TocflQuiz.Controls.Features
                 foreach (var b in _btn)
                 {
                     bool isSel = string.Equals((b.Text ?? "").Trim(), (text ?? "").Trim(), StringComparison.Ordinal);
-                    b.BackColor = isSel ? Color.FromArgb(242, 247, 255) : Color.White;
-                    b.BorderColor = isSel ? Color.FromArgb(140, 170, 255) : Color.FromArgb(230, 230, 230);
+
+                    if (isSel)
+                    {
+                        // ✅ Sử dụng field _isDarkMode
+                        if (_isDarkMode)
+                        {
+                            b.BackColor = Color.FromArgb(50, 60, 80); // Dark selected
+                            b.BorderColor = Color.FromArgb(76, 146, 245);
+                        }
+                        else
+                        {
+                            b.BackColor = Color.FromArgb(242, 247, 255); // Light selected
+                            b.BorderColor = Color.FromArgb(140, 170, 255);
+                        }
+                    }
+                    else
+                    {
+                        b.BackColor = _card.BackColor;
+                        b.BorderColor = _card.BorderColor;
+                    }
                     b.Invalidate();
                 }
             }
@@ -1486,6 +1811,45 @@ namespace TocflQuiz.Controls.Features
                 _btn.BackColor = enabled ? Color.FromArgb(62, 92, 255) : Color.FromArgb(190, 190, 200);
                 _btn.BorderColor = _btn.BackColor;
             }
+           
+
+            private void ApplyDarkToPanel(Control ctrl, bool isDark)
+            {
+                if (ctrl is Panel panel)
+                {
+                    panel.BackColor = isDark ? Color.FromArgb(30, 30, 40) : Color.FromArgb(245, 245, 245);
+
+                    foreach (Control child in panel.Controls)
+                    {
+                        ApplyDarkToPanel(child, isDark);
+                    }
+                }
+                else if (ctrl is TableLayoutPanel tbl)
+                {
+                    tbl.BackColor = isDark ? Color.FromArgb(30, 30, 40) : Color.FromArgb(245, 245, 245);
+
+                    foreach (Control child in tbl.Controls)
+                    {
+                        ApplyDarkToPanel(child, isDark);
+                    }
+                }
+            }
+
+            public void SetDarkMode(bool isDark)
+            {
+                var pageBg = isDark ? Color.FromArgb(30, 30, 40) : Color.FromArgb(245, 245, 245);
+                var textPrimary = isDark ? Color.FromArgb(220, 220, 230) : Color.FromArgb(35, 35, 35);
+
+                BackColor = pageBg;
+                _title.ForeColor = textPrimary;
+
+                foreach (Control ctrl in Controls)
+                {
+                    ApplyDarkToPanel(ctrl, isDark);
+                }
+
+                Invalidate();
+            }
         }
 
         // ================= Stack panel =================
@@ -1612,8 +1976,13 @@ namespace TocflQuiz.Controls.Features
 
                 if (BorderThickness > 0)
                 {
-                    using var pen = new Pen(BorderColor, BorderThickness);
+                    using var pen = new Pen(BorderColor, BorderThickness)
+                    {
+                        LineJoin = LineJoin.Round,
+                        Alignment = PenAlignment.Inset
+                    };
                     g.DrawPath(pen, path);
+
                 }
             }
 
@@ -1680,7 +2049,9 @@ namespace TocflQuiz.Controls.Features
 
                 g.Clear(ResolveBackColor(this));
 
-                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                int inset = Math.Max(1, BorderThickness);
+                var rect = new Rectangle(inset, inset, Width - 1 - inset * 2, Height - 1 - inset * 2);
+
                 int r = Math.Max(1, Math.Min(Radius, Math.Min(Width, Height) / 2));
 
                 using var path = RoundedRect(rect, r);
@@ -1690,7 +2061,12 @@ namespace TocflQuiz.Controls.Features
 
                 if (BorderThickness > 0)
                 {
-                    using var pen = new Pen(BorderColor, BorderThickness);
+                    using var pen = new Pen(BorderColor, BorderThickness)
+                    {
+                        LineJoin = LineJoin.Round,
+                        Alignment = PenAlignment.Inset
+                    };
+                 
                     g.DrawPath(pen, path);
                 }
 
@@ -1716,6 +2092,7 @@ namespace TocflQuiz.Controls.Features
                 path.CloseFigure();
                 return path;
             }
+        
         }
 
         private static Color ResolveBackColor(Control c)
@@ -1854,10 +2231,23 @@ namespace TocflQuiz.Controls.Features
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                int inset = 1; // ✅ fixed border thickness = 1
+                var rect = new Rectangle(inset, inset, Width - 1 - inset * 2, Height - 1 - inset * 2);
+
                 using var path = Round(rect, 12);
                 using var fill = new SolidBrush(BackColor);
-                using var pen = new Pen(Color.FromArgb(230, 232, 238), 1);
+
+                bool isDark = (BackColor == Color.FromArgb(50, 50, 60));
+
+                var border = isDark
+                    ? Color.FromArgb(60, 60, 70)
+                    : Color.FromArgb(230, 232, 238);
+
+                using var pen = new Pen(border, 1)
+                {
+                    LineJoin = LineJoin.Round,
+                    Alignment = PenAlignment.Inset
+                };
 
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
@@ -1887,6 +2277,22 @@ namespace TocflQuiz.Controls.Features
                 Invalidate();
             }
 
+            public void SetDarkMode(bool isDark)
+            {
+                var bgColor = isDark ? Color.FromArgb(50, 50, 60) : Color.FromArgb(245, 246, 250);
+                var textColor = isDark ? Color.FromArgb(220, 220, 230) : Color.FromArgb(40, 40, 40);
+
+                BackColor = bgColor;
+                _txt.BackColor = bgColor;
+                _txt.ForeColor = textColor;
+                _btnHost.BackColor = bgColor;
+                _btnUp.BackColor = bgColor;
+                _btnDown.BackColor = bgColor;
+                _btnUp.ForeColor = textColor;
+                _btnDown.ForeColor = textColor;
+
+                Invalidate();
+            }
         }
 
         // ✅ FIX: remove old combo arrow, use custom arrow + dropdown
@@ -1914,6 +2320,8 @@ namespace TocflQuiz.Controls.Features
             private readonly ListBox _list = new();
 
             private bool _hover;
+            private const int BorderThickness = 1;
+
 
             public PillComboBox()
             {
@@ -2015,13 +2423,24 @@ namespace TocflQuiz.Controls.Features
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
                 g.Clear(Parent?.BackColor ?? Color.White);
-                g.Clear(Parent?.BackColor ?? Color.White);
-                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+
+                int inset = 1; // ✅ FIX: PillComboBox không có BorderThickness
+                var rect = new Rectangle(inset, inset, Width - 1 - inset * 2, Height - 1 - inset * 2);
+
                 using var path = Round(rect, 12);
                 using var fill = new SolidBrush(BackColor);
 
-                var border = _hover ? Color.FromArgb(210, 215, 230) : Color.FromArgb(230, 232, 238);
-                using var pen = new Pen(border, 1);
+                bool isDark = (BackColor == Color.FromArgb(50, 50, 60));
+
+                var border = isDark
+                    ? (_hover ? Color.FromArgb(90, 90, 100) : Color.FromArgb(60, 60, 70))
+                    : (_hover ? Color.FromArgb(210, 215, 230) : Color.FromArgb(230, 232, 238));
+
+                using var pen = new Pen(border, 1)
+                {
+                    LineJoin = LineJoin.Round,
+                    Alignment = PenAlignment.Inset
+                };
 
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
@@ -2030,14 +2449,17 @@ namespace TocflQuiz.Controls.Features
                 var cx = rect.Right - 18;
                 var cy = rect.Top + rect.Height / 2;
 
-                using var arrowPen = new Pen(Color.FromArgb(120, 120, 120), 2);
+                using var arrowPen = new Pen(
+                    isDark ? Color.FromArgb(180, 180, 190) : Color.FromArgb(120, 120, 120), 2);
+
                 g.DrawLines(arrowPen, new[]
                 {
-                    new Point(cx - 6, cy - 2),
-                    new Point(cx,     cy + 3),
-                    new Point(cx + 6, cy - 2)
-                });
+        new Point(cx - 6, cy - 2),
+        new Point(cx,     cy + 3),
+        new Point(cx + 6, cy - 2)
+    });
             }
+
 
             private static GraphicsPath Round(Rectangle r, int radius)
             {
@@ -2062,6 +2484,18 @@ namespace TocflQuiz.Controls.Features
                 Invalidate();
             }
 
+            public void SetDarkMode(bool isDark)
+            {
+                var bgColor = isDark ? Color.FromArgb(50, 50, 60) : Color.FromArgb(245, 246, 250);
+                var textColor = isDark ? Color.FromArgb(220, 220, 230) : Color.FromArgb(40, 40, 40);
+
+                BackColor = bgColor;
+                _text.ForeColor = textColor;
+                _list.BackColor = isDark ? Color.FromArgb(40, 40, 50) : Color.White;
+                _list.ForeColor = textColor;
+
+                Invalidate();
+            }
         }
 
         private sealed class ToggleSwitchLike : Control
@@ -2178,8 +2612,9 @@ namespace TocflQuiz.Controls.Features
                 string txt = Percent + "%";
                 using var font = new Font("Segoe UI", 11F, FontStyle.Bold);
                 var size = g.MeasureString(txt, font);
-                using var brush = new SolidBrush(Color.FromArgb(35, 35, 35));
+                using var brush = new SolidBrush(ForeColor);
                 g.DrawString(txt, font, brush, new PointF((Width - size.Width) / 2, (Height - size.Height) / 2));
+
             }
         }
     }
