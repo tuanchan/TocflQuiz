@@ -18,5 +18,6 @@ namespace TocflQuiz.Models
         public string Term { get; set; } = "";
         public string Definition { get; set; } = "";
         public string? Pinyin { get; set; } // optional: lấy từ (...) cuối dòng nếu có
+        public bool IsStarred { get; set; }
     }
 }

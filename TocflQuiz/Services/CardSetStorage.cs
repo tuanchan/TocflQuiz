@@ -59,6 +59,29 @@ namespace TocflQuiz.Services
             return setDir;
         }
 
+        public static string SaveSetJson(CardSet set)
+        {
+            if (set == null) throw new ArgumentNullException(nameof(set));
+
+            EnsureDir();
+
+            if (string.IsNullOrWhiteSpace(set.Id))
+                set.Id = $"set_{DateTime.Now:yyyyMMdd_HHmmss}";
+
+            set.Items ??= new List<CardItem>();
+            if (set.CreatedAt == default) set.CreatedAt = DateTime.Now;
+
+            var safeId = MakeSafeFileName(set.Id);
+            var setDir = Path.Combine(BaseDir, safeId);
+            Directory.CreateDirectory(setDir);
+
+            var jsonPath = Path.Combine(setDir, "set.json");
+            var json = JsonSerializer.Serialize(set, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(jsonPath, json, Encoding.UTF8);
+
+            return setDir;
+        }
+
         private static string MakeSafeFileName(string s)
         {
             s ??= "";
