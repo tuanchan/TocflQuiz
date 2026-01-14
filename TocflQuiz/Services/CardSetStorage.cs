@@ -20,6 +20,17 @@ namespace TocflQuiz.Services
             return BaseDir;
         }
 
+        public static string GetSetDirectory(CardSet set)
+        {
+            if (set == null) throw new ArgumentNullException(nameof(set));
+
+            EnsureDir();
+
+            var id = string.IsNullOrWhiteSpace(set.Id) ? "unknown_set" : set.Id;
+            var safeId = MakeSafeFileName(id);
+            return Path.Combine(BaseDir, safeId);
+        }
+
         public static string SaveSet(CardSet set, string rawInput, string termDefSep, string cardSep)
         {
             if (set == null) throw new ArgumentNullException(nameof(set));
