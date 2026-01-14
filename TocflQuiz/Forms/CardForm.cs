@@ -639,6 +639,7 @@ namespace TocflQuiz.Forms
         private UserControl CreateFlashcardsView()
         {
             var fc = new TocflQuiz.Controls.Features.FlashcardsFeatureControl();
+            fc.ExitToHomeRequested += () => ShowCourseList();
             if (_selectedSet != null)
                 fc.LoadSet(_selectedSet);
             return fc;
