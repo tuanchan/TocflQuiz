@@ -15,6 +15,7 @@ namespace TocflQuiz.Controls
         public string BackText { get; set; } = "";
         public string SubText { get; set; } = "";
         public bool IsFlipped { get; private set; }
+        public event EventHandler? FlipRequested;
 
         private bool _starred;
         public bool Starred
@@ -50,6 +51,14 @@ namespace TocflQuiz.Controls
         // icon bitmaps
         private Bitmap? _icPencil, _icSound, _icStarOn, _icStarOff;
 
+        private bool _isDarkMode;
+        private Color _cardFill = Color.White;
+        private Color _cardBorder = Color.FromArgb(230, 230, 230);
+        private Color _textPrimary = Color.FromArgb(35, 35, 35);
+        private Color _textSecondary = Color.FromArgb(110, 110, 110);
+        private Color _indicatorColor = Color.FromArgb(90, 90, 90);
+        private Color _iconColor = Color.FromArgb(60, 60, 60);
+        private Color _iconStarOn = Color.FromArgb(255, 170, 0);
         // ===== TOCFL / Taiwan font (Kai like web) =====
         private static readonly string[] TcFontFamilies =
         {
@@ -100,6 +109,24 @@ namespace TocflQuiz.Controls
             };
 
             BuildIconCache();
+        }
+
+        public void SetDarkMode(bool isDark)
+        {
+            if (_isDarkMode == isDark) return;
+            _isDarkMode = isDark;
+
+            _cardFill = _isDarkMode ? Color.FromArgb(40, 40, 50) : Color.White;
+            _cardBorder = _isDarkMode ? Color.FromArgb(60, 60, 70) : Color.FromArgb(230, 230, 230);
+            _textPrimary = _isDarkMode ? Color.FromArgb(230, 230, 240) : Color.FromArgb(35, 35, 35);
+            _textSecondary = _isDarkMode ? Color.FromArgb(170, 170, 180) : Color.FromArgb(110, 110, 110);
+            _indicatorColor = _isDarkMode ? Color.FromArgb(160, 160, 170) : Color.FromArgb(90, 90, 90);
+            _iconColor = _isDarkMode ? Color.FromArgb(200, 200, 210) : Color.FromArgb(60, 60, 60);
+            _iconStarOn = _isDarkMode ? Color.FromArgb(255, 200, 90) : Color.FromArgb(255, 170, 0);
+
+            InvalidateAllCaches();
+            BuildIconCache();
+            Invalidate();
         }
 
         protected override void Dispose(bool disposing)
@@ -171,6 +198,7 @@ namespace TocflQuiz.Controls
 
             _sw.Restart();
             _anim.Start();
+            FlipRequested?.Invoke(this, EventArgs.Empty);
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
@@ -260,7 +288,7 @@ namespace TocflQuiz.Controls
             DrawRoundedShadow(g, shadowRect, 18);
 
             // card body
-            DrawRoundedCard(g, rect, 18, Color.White, Color.FromArgb(230, 230, 230));
+            DrawRoundedCard(g, rect, 18, _cardFill, _cardBorder);
         }
 
         private void EnsureFaceCache()
@@ -298,7 +326,7 @@ namespace TocflQuiz.Controls
 
             // indicator
             using (var fInd = new Font("Segoe UI", 9.5f, FontStyle.Bold))
-            using (var bInd = new SolidBrush(Color.FromArgb(90, 90, 90)))
+            using (var bInd = new SolidBrush(_indicatorColor))
             {
                 g.DrawString(showBack ? "Mặt sau" : "Mặt trước", fInd, bInd, new PointF(18, 14));
             }
@@ -310,7 +338,7 @@ namespace TocflQuiz.Controls
             if (showBack && !string.IsNullOrWhiteSpace(SubText))
             {
                 using var fSub = new Font("Segoe UI", 12f, FontStyle.Regular);
-                using var bSub = new SolidBrush(Color.FromArgb(110, 110, 110));
+                using var bSub = new SolidBrush(_textSecondary);
                 var subRect = new RectangleF(24, rect.Height - 58, rect.Width - 48, 32);
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(SubText, fSub, bSub, subRect, sf);
@@ -320,7 +348,7 @@ namespace TocflQuiz.Controls
         private void DrawFaceDirect(Graphics g, Rectangle rect, bool showBack)
         {
             using (var fInd = new Font("Segoe UI", 9.5f, FontStyle.Bold))
-            using (var bInd = new SolidBrush(Color.FromArgb(90, 90, 90)))
+            using (var bInd = new SolidBrush(_indicatorColor))
             {
                 g.DrawString(showBack ? "Mặt sau" : "Mặt trước", fInd, bInd, new PointF(18, 14));
             }
@@ -330,7 +358,7 @@ namespace TocflQuiz.Controls
             if (showBack && !string.IsNullOrWhiteSpace(SubText))
             {
                 using var fSub = new Font("Segoe UI", 12f, FontStyle.Regular);
-                using var bSub = new SolidBrush(Color.FromArgb(110, 110, 110));
+                using var bSub = new SolidBrush(_textSecondary);
                 var subRect = new RectangleF(24, rect.Height - 58, rect.Width - 48, 32);
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(SubText, fSub, bSub, subRect, sf);
@@ -352,7 +380,7 @@ namespace TocflQuiz.Controls
                 ? new Font(TcPrimaryFontName, size, FontStyle.Regular, GraphicsUnit.Point)
                 : new Font("Segoe UI", size, FontStyle.Regular, GraphicsUnit.Point);
 
-            using var brush = new SolidBrush(Color.FromArgb(35, 35, 35));
+            using var brush = new SolidBrush(_textPrimary);
 
             var sf = new StringFormat
             {
@@ -398,12 +426,13 @@ namespace TocflQuiz.Controls
 
             var size = new Size(34, 30);
             using var f = new Font("Segoe UI Symbol", 11.5f, FontStyle.Bold);
+            using var fStar = new Font("Segoe UI Symbol", 12.5f, FontStyle.Regular);
 
-            _icPencil = RenderGlyph("✎", Color.FromArgb(60, 60, 60), f, size);
-            _icSound = RenderGlyph("🔊", Color.FromArgb(60, 60, 60), f, size);
+            _icPencil = RenderGlyph("✎", _iconColor, f, size);
+            _icSound = RenderGlyph("🔊", _iconColor, f, size);
 
-            _icStarOff = RenderGlyph("☆", Color.FromArgb(60, 60, 60), f, size);
-            _icStarOn = RenderGlyph("★", Color.FromArgb(255, 170, 0), f, size);
+            _icStarOff = RenderGlyph("☆", _iconColor, fStar, size);
+            _icStarOn = RenderGlyph("★", _iconStarOn, fStar, size);
         }
 
         private static Bitmap RenderGlyph(string glyph, Color color, Font font, Size size)
@@ -412,7 +441,7 @@ namespace TocflQuiz.Controls
             using var g = Graphics.FromImage(bmp);
             g.Clear(Color.Transparent);
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
             using var b = new SolidBrush(color);
             var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
