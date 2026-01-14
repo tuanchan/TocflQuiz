@@ -1,10 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Speech.Synthesis;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using NAudio.Wave;
 using TocflQuiz.Controls;
 using TocflQuiz.Models;
 using TocflQuiz.Services;
@@ -30,6 +35,14 @@ namespace TocflQuiz.Controls.Features
         private readonly Button _btnFullscreen = new();
 
         private readonly ToolTip _tt = new ToolTip();
+        private readonly object _ttsLock = new();
+
+        private bool _ttsEnabled = true;
+        private SpeechSynthesizer? _ttsSynth;
+        private CancellationTokenSource? _ttsCts;
+        private WaveOutEvent? _ttsWaveOut;
+        private WaveFileReader? _ttsWaveReader;
+        private MemoryStream? _ttsStream;
 
         public FlashcardsFeatureControl()
         {
@@ -196,7 +209,7 @@ namespace TocflQuiz.Controls.Features
             // ✅ icon nằm trong card:
             _card.StarIconClicked += (_, __) => ToggleStar();
             _card.PencilIconClicked += (_, __) => { /* chưa làm */ };
-            _card.SoundIconClicked += (_, __) => { /* chưa làm */ };
+            _card.SoundIconClicked += async (_, __) => await PlaySoundAsync(_card.FrontText);
 
             // placeholders bottom
             _btnPlay.Click += (_, __) => { /* no logic */ };
@@ -367,6 +380,220 @@ namespace TocflQuiz.Controls.Features
             b.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             b.FlatAppearance.BorderSize = 1;
             b.FlatAppearance.BorderColor = Color.FromArgb(225, 225, 225);
+        }
+
+        private async Task PlaySoundAsync(string text)
+        {
+            if (!_ttsEnabled) return;
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            var cts = ReplaceTtsCancellationToken();
+            var token = cts.Token;
+
+            StopTtsPlayback();
+
+            try
+            {
+                var synth = await GetOrCreateTtsAsync(token);
+                if (synth == null) return;
+
+                MemoryStream? wavStream = null;
+                await Task.Run(() =>
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    wavStream = new MemoryStream();
+                    synth.SetOutputToWaveStream(wavStream);
+                    try
+                    {
+                        synth.Speak(text);
+                    }
+                    finally
+                    {
+                        synth.SetOutputToNull();
+                    }
+                }, token);
+
+                if (wavStream == null) return;
+                if (token.IsCancellationRequested)
+                {
+                    wavStream.Dispose();
+                    return;
+                }
+
+                wavStream.Position = 0;
+                if (!LooksLikeWav(wavStream))
+                {
+                    Debug.WriteLine("TTS output is not WAV data. Skipping playback.");
+                    wavStream.Dispose();
+                    return;
+                }
+
+                wavStream.Position = 0;
+                StartTtsPlayback(wavStream);
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore cancellations
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"TTS synth/play failed: {ex}");
+            }
+        }
+
+        private Task<SpeechSynthesizer?> GetOrCreateTtsAsync(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            if (_ttsSynth != null) return Task.FromResult<SpeechSynthesizer?>(_ttsSynth);
+
+            try
+            {
+                var synth = new SpeechSynthesizer();
+                var voiceName = PickXiaoXiaoVoice(synth);
+                if (!string.IsNullOrWhiteSpace(voiceName))
+                {
+                    synth.SelectVoice(voiceName);
+                }
+                else
+                {
+                    Debug.WriteLine("No zh-CN voice found. Falling back to default voice.");
+                }
+
+                _ttsSynth = synth;
+                return Task.FromResult<SpeechSynthesizer?>(synth);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to create TTS synthesizer: {ex}");
+                return Task.FromResult<SpeechSynthesizer?>(null);
+            }
+        }
+
+        private static string? PickXiaoXiaoVoice(SpeechSynthesizer synth)
+        {
+            var voices = synth.GetInstalledVoices()
+                .Select(v => v.VoiceInfo)
+                .ToList();
+
+            var xiaoxiao = voices.FirstOrDefault(v =>
+                v.Culture.Name.Equals("zh-CN", StringComparison.OrdinalIgnoreCase) &&
+                v.Name.Contains("XiaoXiao", StringComparison.OrdinalIgnoreCase));
+            if (xiaoxiao != null) return xiaoxiao.Name;
+
+            var zhCn = voices.FirstOrDefault(v =>
+                v.Culture.Name.Equals("zh-CN", StringComparison.OrdinalIgnoreCase));
+            return zhCn?.Name;
+        }
+
+        private CancellationTokenSource ReplaceTtsCancellationToken()
+        {
+            var newCts = new CancellationTokenSource();
+            var oldCts = Interlocked.Exchange(ref _ttsCts, newCts);
+            if (oldCts != null)
+            {
+                try
+                {
+                    oldCts.Cancel();
+                }
+                catch
+                {
+                    // ignore
+                }
+                oldCts.Dispose();
+            }
+            return newCts;
+        }
+
+        private void CancelTts()
+        {
+            var oldCts = Interlocked.Exchange(ref _ttsCts, null);
+            if (oldCts == null) return;
+
+            try
+            {
+                oldCts.Cancel();
+            }
+            catch
+            {
+                // ignore
+            }
+            oldCts.Dispose();
+        }
+
+        private void StartTtsPlayback(MemoryStream wavStream)
+        {
+            lock (_ttsLock)
+            {
+                StopTtsPlayback();
+
+                _ttsStream = wavStream;
+                _ttsWaveReader = new WaveFileReader(wavStream);
+                _ttsWaveOut = new WaveOutEvent();
+                _ttsWaveOut.Init(_ttsWaveReader);
+                _ttsWaveOut.PlaybackStopped += OnTtsPlaybackStopped;
+                _ttsWaveOut.Play();
+            }
+        }
+
+        private void StopTtsPlayback()
+        {
+            lock (_ttsLock)
+            {
+                if (_ttsWaveOut != null)
+                {
+                    _ttsWaveOut.PlaybackStopped -= OnTtsPlaybackStopped;
+                    _ttsWaveOut.Stop();
+                    _ttsWaveOut.Dispose();
+                    _ttsWaveOut = null;
+                }
+
+                _ttsWaveReader?.Dispose();
+                _ttsWaveReader = null;
+
+                _ttsStream?.Dispose();
+                _ttsStream = null;
+            }
+        }
+
+        private void OnTtsPlaybackStopped(object? sender, StoppedEventArgs e)
+        {
+            lock (_ttsLock)
+            {
+                if (_ttsWaveOut != null)
+                {
+                    _ttsWaveOut.PlaybackStopped -= OnTtsPlaybackStopped;
+                    _ttsWaveOut.Dispose();
+                    _ttsWaveOut = null;
+                }
+
+                _ttsWaveReader?.Dispose();
+                _ttsWaveReader = null;
+
+                _ttsStream?.Dispose();
+                _ttsStream = null;
+            }
+        }
+
+        private static bool LooksLikeWav(Stream stream)
+        {
+            if (!stream.CanSeek) return false;
+            var original = stream.Position;
+            try
+            {
+                var header = new byte[12];
+                var read = stream.Read(header, 0, header.Length);
+                if (read < header.Length) return false;
+
+                var riff = System.Text.Encoding.ASCII.GetString(header, 0, 4);
+                var wave = System.Text.Encoding.ASCII.GetString(header, 8, 4);
+                return riff == "RIFF" && wave == "WAVE";
+            }
+            finally
+            {
+                stream.Position = original;
+            }
         }
     }
 }
