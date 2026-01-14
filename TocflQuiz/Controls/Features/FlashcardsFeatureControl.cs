@@ -16,6 +16,9 @@ namespace TocflQuiz.Controls.Features
         private CardSet? _set;
         private int _index;
         private HashSet<int> _starred = new();
+        private bool _isShuffled;
+        private List<int> _order = new();
+        private List<CardItem> _view = new();
 
         private readonly FlashcardControl _card = new();
         private readonly Label _lblIndex = new();
@@ -49,6 +52,7 @@ namespace TocflQuiz.Controls.Features
             _index = 0;
 
             LoadStarred();
+            RebuildView();
             SetEnabledUI(_set.Items != null && _set.Items.Count > 0);
             ShowCard();
         }
@@ -200,7 +204,7 @@ namespace TocflQuiz.Controls.Features
 
             // placeholders bottom
             _btnPlay.Click += (_, __) => { /* no logic */ };
-            _btnShuffle.Click += (_, __) => { /* no logic */ };
+            _btnShuffle.Click += (_, __) => ToggleShuffle();
             _btnSettings.Click += (_, __) => { /* no logic */ };
             _btnFullscreen.Click += (_, __) => { /* no logic */ };
 
@@ -237,12 +241,18 @@ namespace TocflQuiz.Controls.Features
                 return;
             }
 
+            if (_view.Count == 0)
+            {
+                RebuildView();
+            }
+
             if (_index < 0) _index = 0;
-            if (_index >= _set.Items.Count) _index = _set.Items.Count - 1;
+            if (_index >= _view.Count) _index = _view.Count - 1;
 
-            var it = _set.Items[_index];
+            var it = _view[_index];
+            var originalIndex = GetCurrentOriginalIndex();
 
-            _card.Starred = _starred.Contains(_index);
+            _card.Starred = _starred.Contains(originalIndex);
 
             var front = it.Term ?? "";
             var back = it.Definition ?? "";
@@ -250,10 +260,10 @@ namespace TocflQuiz.Controls.Features
 
             _card.SetCard(front, back, sub);
 
-            _lblIndex.Text = $"{_index + 1} / {_set.Items.Count}";
+            _lblIndex.Text = $"{_index + 1} / {_view.Count}";
 
             _btnPrev.Enabled = _index > 0;
-            _btnNext.Enabled = _index < _set.Items.Count - 1;
+            _btnNext.Enabled = _index < _view.Count - 1;
         }
 
         private void Prev()
@@ -267,7 +277,7 @@ namespace TocflQuiz.Controls.Features
         private void Next()
         {
             if (_set?.Items == null) return;
-            if (_index >= _set.Items.Count - 1) return;
+            if (_index >= _view.Count - 1) return;
             _index++;
             ShowCard();
         }
@@ -276,11 +286,78 @@ namespace TocflQuiz.Controls.Features
         {
             if (_set?.Items == null || _set.Items.Count == 0) return;
 
-            if (_starred.Contains(_index)) _starred.Remove(_index);
-            else _starred.Add(_index);
+            var originalIndex = GetCurrentOriginalIndex();
+            if (_starred.Contains(originalIndex)) _starred.Remove(originalIndex);
+            else _starred.Add(originalIndex);
 
             SaveStarred();
             ShowCard();
+        }
+
+        private void ToggleShuffle()
+        {
+            if (_set?.Items == null || _set.Items.Count == 0) return;
+
+            var currentOriginalIndex = GetCurrentOriginalIndex();
+            _isShuffled = !_isShuffled;
+            RebuildView(currentOriginalIndex);
+            ShowCard();
+        }
+
+        private void RebuildView(int? keepOriginalIndex = null)
+        {
+            _order.Clear();
+            _view.Clear();
+
+            if (_set?.Items == null || _set.Items.Count == 0)
+            {
+                _index = 0;
+                return;
+            }
+
+            var count = _set.Items.Count;
+            _order = Enumerable.Range(0, count).ToList();
+
+            if (_isShuffled)
+            {
+                Shuffle(_order);
+            }
+
+            _view = _order.Select(i => _set.Items[i]).ToList();
+
+            if (keepOriginalIndex.HasValue)
+            {
+                var newIndex = _order.IndexOf(keepOriginalIndex.Value);
+                _index = newIndex >= 0 ? newIndex : Math.Min(_index, count - 1);
+            }
+            else
+            {
+                _index = Math.Min(_index, count - 1);
+            }
+
+            if (_index < 0) _index = 0;
+        }
+
+        private static void Shuffle(List<int> list)
+        {
+            var rng = new Random();
+            for (var i = list.Count - 1; i > 0; i--)
+            {
+                var j = rng.Next(i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+        }
+
+        private int GetCurrentOriginalIndex()
+        {
+            if (_set?.Items == null || _set.Items.Count == 0) return 0;
+
+            if (_order.Count == _set.Items.Count && _index >= 0 && _index < _order.Count)
+            {
+                return _order[_index];
+            }
+
+            return Math.Min(Math.Max(_index, 0), _set.Items.Count - 1);
         }
 
         private string GetSetDir()
