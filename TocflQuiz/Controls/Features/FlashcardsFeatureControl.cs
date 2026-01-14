@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -17,6 +16,9 @@ namespace TocflQuiz.Controls.Features
         private CardSet? _set;
         private int _index;
         private HashSet<int> _starred = new();
+        private bool _isShuffled;
+        private List<int> _order = new();
+        private List<CardItem> _view = new();
 
         private readonly FlashcardControl _card = new();
         private readonly Label _lblIndex = new();
@@ -31,8 +33,6 @@ namespace TocflQuiz.Controls.Features
         private readonly Button _btnFullscreen = new();
 
         private readonly ToolTip _tt = new ToolTip();
-        private readonly SettingsOverlayPanel _settingsOverlay = new();
-        private readonly RoundedPanel _settingsPanel = new();
 
         public FlashcardsFeatureControl()
         {
@@ -52,6 +52,7 @@ namespace TocflQuiz.Controls.Features
             _index = 0;
 
             LoadStarred();
+            RebuildView();
             SetEnabledUI(_set.Items != null && _set.Items.Count > 0);
             ShowCard();
         }
@@ -189,8 +190,6 @@ namespace TocflQuiz.Controls.Features
 
             Controls.Clear();
             Controls.Add(root);
-
-            BuildSettingsPanel();
         }
 
         private void Wire()
@@ -205,8 +204,8 @@ namespace TocflQuiz.Controls.Features
 
             // placeholders bottom
             _btnPlay.Click += (_, __) => { /* no logic */ };
-            _btnShuffle.Click += (_, __) => { /* no logic */ };
-            _btnSettings.Click += (_, __) => ToggleSettingsOverlay();
+            _btnShuffle.Click += (_, __) => ToggleShuffle();
+            _btnSettings.Click += (_, __) => { /* no logic */ };
             _btnFullscreen.Click += (_, __) => { /* no logic */ };
 
             // keyboard nav
@@ -223,74 +222,6 @@ namespace TocflQuiz.Controls.Features
             this.Click += (_, __) => this.Focus();
             _card.Click += (_, __) => this.Focus();
             this.TabStop = true;
-        }
-
-        private void BuildSettingsPanel()
-        {
-            _settingsOverlay.Dock = DockStyle.Fill;
-            _settingsOverlay.Visible = false;
-            _settingsOverlay.BackColor = Color.Transparent;
-
-            _settingsPanel.BackColor = Color.White;
-            _settingsPanel.Radius = 18;
-            _settingsPanel.BorderThickness = 0;
-            _settingsPanel.Size = new Size(360, 300);
-            _settingsPanel.Anchor = AnchorStyles.None;
-            _settingsPanel.Padding = new Padding(24);
-
-            var title = new Label
-            {
-                AutoSize = true,
-                Text = "Cài đặt thẻ",
-                Font = new Font("Segoe UI", 12F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(40, 40, 40)
-            };
-
-            var subtitle = new Label
-            {
-                AutoSize = true,
-                Text = "Các tùy chọn sẽ được cập nhật sau.",
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
-                ForeColor = Color.FromArgb(90, 90, 90),
-                Location = new Point(0, title.Bottom + 8)
-            };
-
-            _settingsPanel.Controls.Add(title);
-            _settingsPanel.Controls.Add(subtitle);
-            _settingsPanel.Layout += (_, __) =>
-            {
-                title.Location = new Point(_settingsPanel.Padding.Left, _settingsPanel.Padding.Top);
-                subtitle.Location = new Point(_settingsPanel.Padding.Left, title.Bottom + 8);
-            };
-
-            _settingsOverlay.Controls.Add(_settingsPanel);
-            _settingsOverlay.Layout += (_, __) => CenterSettingsPanel();
-            _settingsOverlay.SizeChanged += (_, __) => CenterSettingsPanel();
-            _settingsOverlay.MouseDown += (_, __) =>
-            {
-                if (_settingsOverlay.Visible) _settingsOverlay.Visible = false;
-            };
-
-            Controls.Add(_settingsOverlay);
-            _settingsOverlay.BringToFront();
-        }
-
-        private void CenterSettingsPanel()
-        {
-            if (!_settingsOverlay.Visible) return;
-            var x = Math.Max(0, (_settingsOverlay.ClientSize.Width - _settingsPanel.Width) / 2);
-            var y = Math.Max(0, (_settingsOverlay.ClientSize.Height - _settingsPanel.Height) / 2);
-            _settingsPanel.Location = new Point(x, y);
-        }
-
-        private void ToggleSettingsOverlay()
-        {
-            _settingsOverlay.Visible = !_settingsOverlay.Visible;
-            if (_settingsOverlay.Visible)
-            {
-                CenterSettingsPanel();
-                _settingsOverlay.BringToFront();
-            }
         }
 
         private void SetEnabledUI(bool enabled)
@@ -310,12 +241,18 @@ namespace TocflQuiz.Controls.Features
                 return;
             }
 
+            if (_view.Count == 0)
+            {
+                RebuildView();
+            }
+
             if (_index < 0) _index = 0;
-            if (_index >= _set.Items.Count) _index = _set.Items.Count - 1;
+            if (_index >= _view.Count) _index = _view.Count - 1;
 
-            var it = _set.Items[_index];
+            var it = _view[_index];
+            var originalIndex = GetCurrentOriginalIndex();
 
-            _card.Starred = _starred.Contains(_index);
+            _card.Starred = _starred.Contains(originalIndex);
 
             var front = it.Term ?? "";
             var back = it.Definition ?? "";
@@ -323,10 +260,10 @@ namespace TocflQuiz.Controls.Features
 
             _card.SetCard(front, back, sub);
 
-            _lblIndex.Text = $"{_index + 1} / {_set.Items.Count}";
+            _lblIndex.Text = $"{_index + 1} / {_view.Count}";
 
             _btnPrev.Enabled = _index > 0;
-            _btnNext.Enabled = _index < _set.Items.Count - 1;
+            _btnNext.Enabled = _index < _view.Count - 1;
         }
 
         private void Prev()
@@ -340,7 +277,7 @@ namespace TocflQuiz.Controls.Features
         private void Next()
         {
             if (_set?.Items == null) return;
-            if (_index >= _set.Items.Count - 1) return;
+            if (_index >= _view.Count - 1) return;
             _index++;
             ShowCard();
         }
@@ -349,11 +286,78 @@ namespace TocflQuiz.Controls.Features
         {
             if (_set?.Items == null || _set.Items.Count == 0) return;
 
-            if (_starred.Contains(_index)) _starred.Remove(_index);
-            else _starred.Add(_index);
+            var originalIndex = GetCurrentOriginalIndex();
+            if (_starred.Contains(originalIndex)) _starred.Remove(originalIndex);
+            else _starred.Add(originalIndex);
 
             SaveStarred();
             ShowCard();
+        }
+
+        private void ToggleShuffle()
+        {
+            if (_set?.Items == null || _set.Items.Count == 0) return;
+
+            var currentOriginalIndex = GetCurrentOriginalIndex();
+            _isShuffled = !_isShuffled;
+            RebuildView(currentOriginalIndex);
+            ShowCard();
+        }
+
+        private void RebuildView(int? keepOriginalIndex = null)
+        {
+            _order.Clear();
+            _view.Clear();
+
+            if (_set?.Items == null || _set.Items.Count == 0)
+            {
+                _index = 0;
+                return;
+            }
+
+            var count = _set.Items.Count;
+            _order = Enumerable.Range(0, count).ToList();
+
+            if (_isShuffled)
+            {
+                Shuffle(_order);
+            }
+
+            _view = _order.Select(i => _set.Items[i]).ToList();
+
+            if (keepOriginalIndex.HasValue)
+            {
+                var newIndex = _order.IndexOf(keepOriginalIndex.Value);
+                _index = newIndex >= 0 ? newIndex : Math.Min(_index, count - 1);
+            }
+            else
+            {
+                _index = Math.Min(_index, count - 1);
+            }
+
+            if (_index < 0) _index = 0;
+        }
+
+        private static void Shuffle(List<int> list)
+        {
+            var rng = new Random();
+            for (var i = list.Count - 1; i > 0; i--)
+            {
+                var j = rng.Next(i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+        }
+
+        private int GetCurrentOriginalIndex()
+        {
+            if (_set?.Items == null || _set.Items.Count == 0) return 0;
+
+            if (_order.Count == _set.Items.Count && _index >= 0 && _index < _order.Count)
+            {
+                return _order[_index];
+            }
+
+            return Math.Min(Math.Max(_index, 0), _set.Items.Count - 1);
         }
 
         private string GetSetDir()
@@ -440,99 +444,6 @@ namespace TocflQuiz.Controls.Features
             b.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             b.FlatAppearance.BorderSize = 1;
             b.FlatAppearance.BorderColor = Color.FromArgb(225, 225, 225);
-        }
-
-        private sealed class SettingsOverlayPanel : Panel
-        {
-            public SettingsOverlayPanel()
-            {
-                Dock = DockStyle.Fill;
-                SetStyle(ControlStyles.AllPaintingInWmPaint |
-                         ControlStyles.OptimizedDoubleBuffer |
-                         ControlStyles.UserPaint, true);
-            }
-
-            protected override void OnPaint(PaintEventArgs e)
-            {
-                base.OnPaint(e);
-                using var b = new SolidBrush(Color.FromArgb(130, 0, 0, 0));
-                e.Graphics.FillRectangle(b, ClientRectangle);
-            }
-        }
-
-        private sealed class RoundedPanel : Panel
-        {
-            public int Radius { get; set; } = 16;
-            public int BorderThickness { get; set; } = 0;
-            public Color BorderColor { get; set; } = Color.FromArgb(225, 225, 225);
-
-            private GraphicsPath? _regionPath;
-
-            public RoundedPanel()
-            {
-                SetStyle(ControlStyles.AllPaintingInWmPaint |
-                         ControlStyles.OptimizedDoubleBuffer |
-                         ControlStyles.ResizeRedraw |
-                         ControlStyles.UserPaint, true);
-            }
-
-            protected override void OnSizeChanged(EventArgs e)
-            {
-                base.OnSizeChanged(e);
-                UpdateRegion();
-                Invalidate();
-            }
-
-            protected override void Dispose(bool disposing)
-            {
-                if (disposing) _regionPath?.Dispose();
-                base.Dispose(disposing);
-            }
-
-            protected override void OnPaint(PaintEventArgs e)
-            {
-                var g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.Clear(Parent?.BackColor ?? Color.White);
-
-                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-                int r = Math.Max(1, Math.Min(Radius, Math.Min(Width, Height) / 2));
-
-                using var path = RoundedRect(rect, r);
-                using var fill = new SolidBrush(BackColor);
-                g.FillPath(fill, path);
-
-                if (BorderThickness > 0)
-                {
-                    using var pen = new Pen(BorderColor, BorderThickness)
-                    {
-                        LineJoin = LineJoin.Round,
-                        Alignment = PenAlignment.Inset
-                    };
-                    g.DrawPath(pen, path);
-                }
-            }
-
-            private void UpdateRegion()
-            {
-                _regionPath?.Dispose();
-                int r = Math.Max(1, Math.Min(Radius, Math.Min(Width, Height) / 2));
-                var rect = new Rectangle(0, 0, Width, Height);
-                _regionPath = RoundedRect(rect, r);
-                Region = new Region(_regionPath);
-            }
-
-            private static GraphicsPath RoundedRect(Rectangle r, int radius)
-            {
-                var path = new GraphicsPath();
-                int d = radius * 2;
-                path.AddArc(r.X, r.Y, d, d, 180, 90);
-                path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-                path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-                path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-                path.CloseFigure();
-                return path;
-            }
         }
     }
 }
