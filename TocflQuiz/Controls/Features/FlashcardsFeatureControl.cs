@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -30,6 +31,8 @@ namespace TocflQuiz.Controls.Features
         private readonly Button _btnFullscreen = new();
 
         private readonly ToolTip _tt = new ToolTip();
+        private readonly SettingsOverlayPanel _settingsOverlay = new();
+        private readonly RoundedPanel _settingsPanel = new();
 
         public FlashcardsFeatureControl()
         {
@@ -186,6 +189,8 @@ namespace TocflQuiz.Controls.Features
 
             Controls.Clear();
             Controls.Add(root);
+
+            BuildSettingsPanel();
         }
 
         private void Wire()
@@ -201,7 +206,7 @@ namespace TocflQuiz.Controls.Features
             // placeholders bottom
             _btnPlay.Click += (_, __) => { /* no logic */ };
             _btnShuffle.Click += (_, __) => { /* no logic */ };
-            _btnSettings.Click += (_, __) => { /* no logic */ };
+            _btnSettings.Click += (_, __) => ToggleSettingsOverlay();
             _btnFullscreen.Click += (_, __) => { /* no logic */ };
 
             // keyboard nav
@@ -218,6 +223,74 @@ namespace TocflQuiz.Controls.Features
             this.Click += (_, __) => this.Focus();
             _card.Click += (_, __) => this.Focus();
             this.TabStop = true;
+        }
+
+        private void BuildSettingsPanel()
+        {
+            _settingsOverlay.Dock = DockStyle.Fill;
+            _settingsOverlay.Visible = false;
+            _settingsOverlay.BackColor = Color.Transparent;
+
+            _settingsPanel.BackColor = Color.White;
+            _settingsPanel.Radius = 18;
+            _settingsPanel.BorderThickness = 0;
+            _settingsPanel.Size = new Size(360, 300);
+            _settingsPanel.Anchor = AnchorStyles.None;
+            _settingsPanel.Padding = new Padding(24);
+
+            var title = new Label
+            {
+                AutoSize = true,
+                Text = "Cài đặt thẻ",
+                Font = new Font("Segoe UI", 12F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(40, 40, 40)
+            };
+
+            var subtitle = new Label
+            {
+                AutoSize = true,
+                Text = "Các tùy chọn sẽ được cập nhật sau.",
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
+                ForeColor = Color.FromArgb(90, 90, 90),
+                Location = new Point(0, title.Bottom + 8)
+            };
+
+            _settingsPanel.Controls.Add(title);
+            _settingsPanel.Controls.Add(subtitle);
+            _settingsPanel.Layout += (_, __) =>
+            {
+                title.Location = new Point(_settingsPanel.Padding.Left, _settingsPanel.Padding.Top);
+                subtitle.Location = new Point(_settingsPanel.Padding.Left, title.Bottom + 8);
+            };
+
+            _settingsOverlay.Controls.Add(_settingsPanel);
+            _settingsOverlay.Layout += (_, __) => CenterSettingsPanel();
+            _settingsOverlay.SizeChanged += (_, __) => CenterSettingsPanel();
+            _settingsOverlay.MouseDown += (_, __) =>
+            {
+                if (_settingsOverlay.Visible) _settingsOverlay.Visible = false;
+            };
+
+            Controls.Add(_settingsOverlay);
+            _settingsOverlay.BringToFront();
+        }
+
+        private void CenterSettingsPanel()
+        {
+            if (!_settingsOverlay.Visible) return;
+            var x = Math.Max(0, (_settingsOverlay.ClientSize.Width - _settingsPanel.Width) / 2);
+            var y = Math.Max(0, (_settingsOverlay.ClientSize.Height - _settingsPanel.Height) / 2);
+            _settingsPanel.Location = new Point(x, y);
+        }
+
+        private void ToggleSettingsOverlay()
+        {
+            _settingsOverlay.Visible = !_settingsOverlay.Visible;
+            if (_settingsOverlay.Visible)
+            {
+                CenterSettingsPanel();
+                _settingsOverlay.BringToFront();
+            }
         }
 
         private void SetEnabledUI(bool enabled)
@@ -367,6 +440,99 @@ namespace TocflQuiz.Controls.Features
             b.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             b.FlatAppearance.BorderSize = 1;
             b.FlatAppearance.BorderColor = Color.FromArgb(225, 225, 225);
+        }
+
+        private sealed class SettingsOverlayPanel : Panel
+        {
+            public SettingsOverlayPanel()
+            {
+                Dock = DockStyle.Fill;
+                SetStyle(ControlStyles.AllPaintingInWmPaint |
+                         ControlStyles.OptimizedDoubleBuffer |
+                         ControlStyles.UserPaint, true);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                using var b = new SolidBrush(Color.FromArgb(130, 0, 0, 0));
+                e.Graphics.FillRectangle(b, ClientRectangle);
+            }
+        }
+
+        private sealed class RoundedPanel : Panel
+        {
+            public int Radius { get; set; } = 16;
+            public int BorderThickness { get; set; } = 0;
+            public Color BorderColor { get; set; } = Color.FromArgb(225, 225, 225);
+
+            private GraphicsPath? _regionPath;
+
+            public RoundedPanel()
+            {
+                SetStyle(ControlStyles.AllPaintingInWmPaint |
+                         ControlStyles.OptimizedDoubleBuffer |
+                         ControlStyles.ResizeRedraw |
+                         ControlStyles.UserPaint, true);
+            }
+
+            protected override void OnSizeChanged(EventArgs e)
+            {
+                base.OnSizeChanged(e);
+                UpdateRegion();
+                Invalidate();
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing) _regionPath?.Dispose();
+                base.Dispose(disposing);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Parent?.BackColor ?? Color.White);
+
+                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                int r = Math.Max(1, Math.Min(Radius, Math.Min(Width, Height) / 2));
+
+                using var path = RoundedRect(rect, r);
+                using var fill = new SolidBrush(BackColor);
+                g.FillPath(fill, path);
+
+                if (BorderThickness > 0)
+                {
+                    using var pen = new Pen(BorderColor, BorderThickness)
+                    {
+                        LineJoin = LineJoin.Round,
+                        Alignment = PenAlignment.Inset
+                    };
+                    g.DrawPath(pen, path);
+                }
+            }
+
+            private void UpdateRegion()
+            {
+                _regionPath?.Dispose();
+                int r = Math.Max(1, Math.Min(Radius, Math.Min(Width, Height) / 2));
+                var rect = new Rectangle(0, 0, Width, Height);
+                _regionPath = RoundedRect(rect, r);
+                Region = new Region(_regionPath);
+            }
+
+            private static GraphicsPath RoundedRect(Rectangle r, int radius)
+            {
+                var path = new GraphicsPath();
+                int d = radius * 2;
+                path.AddArc(r.X, r.Y, d, d, 180, 90);
+                path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+                path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+                path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+                path.CloseFigure();
+                return path;
+            }
         }
     }
 }
