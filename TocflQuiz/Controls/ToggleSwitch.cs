@@ -9,6 +9,9 @@ namespace TocflQuiz.Controls
         public event EventHandler? CheckedChanged;
 
         private bool _checked;
+        private Color _onBackColor = Color.FromArgb(90, 120, 255);
+        private Color _offBackColor = Color.FromArgb(210, 210, 210);
+        private Color _knobColor = Color.White;
 
         public bool Checked
         {
@@ -19,6 +22,39 @@ namespace TocflQuiz.Controls
                 _checked = value;
                 Invalidate();
                 CheckedChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public Color OnBackColor
+        {
+            get => _onBackColor;
+            set
+            {
+                if (_onBackColor == value) return;
+                _onBackColor = value;
+                Invalidate();
+            }
+        }
+
+        public Color OffBackColor
+        {
+            get => _offBackColor;
+            set
+            {
+                if (_offBackColor == value) return;
+                _offBackColor = value;
+                Invalidate();
+            }
+        }
+
+        public Color KnobColor
+        {
+            get => _knobColor;
+            set
+            {
+                if (_knobColor == value) return;
+                _knobColor = value;
+                Invalidate();
             }
         }
 
@@ -49,7 +85,7 @@ namespace TocflQuiz.Controls
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
             var radius = rect.Height / 2;
 
-            var bg = Checked ? Color.FromArgb(90, 120, 255) : Color.FromArgb(210, 210, 210);
+            var bg = Checked ? _onBackColor : _offBackColor;
             using var bgBrush = new SolidBrush(bg);
 
             using (var path = RoundedRect(rect, radius))
@@ -60,7 +96,7 @@ namespace TocflQuiz.Controls
             int knobX = Checked ? rect.Width - knobSize - 2 : 2;
             var knobRect = new Rectangle(knobX, 2, knobSize, knobSize);
 
-            using var knobBrush = new SolidBrush(Color.White);
+            using var knobBrush = new SolidBrush(_knobColor);
             using var knobPath = RoundedRect(knobRect, knobRect.Height / 2);
             g.FillPath(knobBrush, knobPath);
         }
