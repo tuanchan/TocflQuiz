@@ -543,6 +543,8 @@ namespace TocflQuiz.Forms
                 _coursePicker.SetDarkMode(true);
                 _quizView?.SetDarkMode(true);
                 _essayView?.SetDarkMode(true);
+                if (_host.Controls.Count > 0 && _host.Controls[0] is FlashcardsFeatureControl fcDark)
+                    fcDark.SetDarkMode(true);
             }
             else
             {
@@ -573,6 +575,8 @@ namespace TocflQuiz.Forms
                 _coursePicker.SetDarkMode(false);
                 _quizView?.SetDarkMode(false);
                 _essayView?.SetDarkMode(false);
+                if (_host.Controls.Count > 0 && _host.Controls[0] is FlashcardsFeatureControl fcLight)
+                    fcLight.SetDarkMode(false);
             }
             // ✅ nếu đang ở màn welcome thì vẽ lại đúng theme
             if (_sidebar.Visible && _selectedSet == null)
@@ -641,6 +645,8 @@ namespace TocflQuiz.Forms
             var fc = new TocflQuiz.Controls.Features.FlashcardsFeatureControl();
             if (_selectedSet != null)
                 fc.LoadSet(_selectedSet);
+            fc.SetDarkMode(_isDarkMode);
+            fc.ExitRequested += () => ShowCourseList();
             return fc;
         }
 

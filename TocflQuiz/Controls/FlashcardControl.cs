@@ -26,6 +26,7 @@ namespace TocflQuiz.Controls
         public event EventHandler? StarIconClicked;
         public event EventHandler? PencilIconClicked;
         public event EventHandler? SoundIconClicked;
+        public event EventHandler? Flipped;
 
         // ===== animation =====
         private readonly System.Windows.Forms.Timer _anim = new System.Windows.Forms.Timer { Interval = 16 }; // ~60fps
@@ -94,6 +95,7 @@ namespace TocflQuiz.Controls
 
                     _angle = _toAngle;
                     IsFlipped = (_toAngle >= 90f);
+                    Flipped?.Invoke(this, EventArgs.Empty);
                 }
 
                 Invalidate();
